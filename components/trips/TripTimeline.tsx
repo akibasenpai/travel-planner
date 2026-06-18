@@ -41,26 +41,31 @@ export function TripTimeline({
                 {formatDatetimeDisplay(schedule.datetime)}
               </p>
             ) : null}
-            {schedule.location ? (
-              <p className="mt-0.5 text-sm font-bold text-stone-800">
-                {schedule.location}
-              </p>
-            ) : null}
+            {/* ▼ どこで ＆ 地図を見る を横並びにする */}
+            <div className="mt-0.5 flex items-center gap-3">
+              {schedule.location ? (
+                <p className="text-sm font-bold text-stone-800">
+                  {schedule.location}
+                </p>
+              ) : null}
+              {schedule.map_url ? (
+                <a
+                  href={schedule.map_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center rounded-full bg-primary-light px-2.5 py-1 text-[11px] font-bold text-primary-dark transition-colors hover:bg-primary-strong hover:text-white"
+                >
+                  地図を見る
+                </a>
+              ) : null}
+            </div>
+
+            {/* ▼ 何をするか（場所と地図の下に表示） */}
             {schedule.activity ? (
               <TextWithLinks
                 text={schedule.activity}
                 className="mt-1 text-sm leading-relaxed text-stone-600"
               />
-            ) : null}
-            {schedule.map_url ? (
-              <a
-                href={schedule.map_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 inline-flex items-center rounded-full bg-primary px-2.5 py-1 text-xs font-medium text-primary-dark transition-colors hover:bg-primary-strong hover:text-white"
-              >
-                地図を見る
-              </a>
             ) : null}
           </div>
         </li>

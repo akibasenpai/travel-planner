@@ -91,7 +91,8 @@ export function TripTimeline({
             ) : null}
           </div>
         </li>
-      ))}
+      ); // 👈 追加：return の閉じ括弧
+    })}  // 👈 変更：)) を }) にする
     </ol>
   );
 }

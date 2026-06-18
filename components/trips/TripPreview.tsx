@@ -1,5 +1,6 @@
 import type { TripDraft } from "@/lib/types/trip";
 import { TripTimeline } from "@/components/trips/TripTimeline";
+import { TextWithLinks } from "@/components/ui/TextWithLinks"; // 👈 追加：リンク化する部品を読み込む
 
 type TripPreviewProps = {
   draft: TripDraft;
@@ -23,9 +24,11 @@ export function TripPreview({ draft, screenshotMode = false }: TripPreviewProps)
           {draft.title || "（タイトル未入力）"}
         </h2>
         {draft.description ? (
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-stone-600">
-            {draft.description}
-          </p>
+          {/* ▼ 修正：pタグを TextWithLinks に置き換え */}
+          <TextWithLinks
+            text={draft.description}
+            className="mt-3 text-sm leading-relaxed text-stone-600"
+          />
         ) : null}
       </header>
       <TripTimeline schedules={draft.schedules} screenshotMode={screenshotMode} />

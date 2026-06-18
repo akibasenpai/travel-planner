@@ -33,13 +33,14 @@ export function TripTimeline({
               // 同じ日付なら時間のみ
               displayDatetime = current.time || ""; 
             } else {
-              // 新しい日付ならフル表示して記憶を更新
-              displayDatetime = formatDatetimeDisplay(schedule.datetime);
+              // ▼ 新しい日付ならフル表示し、日付と時間の間のスペースを改行(\n)に変換
+              const formatted = formatDatetimeDisplay(schedule.datetime);
+              displayDatetime = formatted.replace(" ", "\n");
               lastSeenDate = current.date;
             }
           } else {
-            // 時間のみ、または古いデータ
-            displayDatetime = formatDatetimeDisplay(schedule.datetime);
+            // 時間のみ、または古いデータの場合もスペースがあれば改行に変換
+            displayDatetime = formatDatetimeDisplay(schedule.datetime).replace(" ", "\n");
           }
         }
 
@@ -60,8 +61,9 @@ export function TripTimeline({
               aria-hidden
             />
             <div className="min-w-0 flex-1">
+              {/* ▼ whitespace-pre-wrap を追加して改行を有効にする */}
               {displayDatetime ? (
-                <p className="text-xs font-semibold tracking-wide text-primary-strong">
+                <p className="whitespace-pre-wrap text-xs font-semibold tracking-wide text-primary-strong">
                   {displayDatetime}
                 </p>
               ) : null}

@@ -1,5 +1,5 @@
 import type { ScheduleItem } from "@/lib/types/trip";
-import { formatDatetimeDisplay, parseDatetime } from "@/lib/utils/datetime"; // 👈 parseDatetime を追加
+import { formatDatetimeDisplay, parseDatetime } from "@/lib/utils/datetime";
 import { TextWithLinks } from "@/components/ui/TextWithLinks";
 
 type TripTimelineProps = {
@@ -17,29 +17,32 @@ export function TripTimeline({
     );
   }
 
+  // 最後に表示した日付を記憶しておく変数
+  let lastSeenDate = "";
+
   return (
     <ol className="relative space-y-0">
       {schedules.map((schedule, index) => {
-        // ▼ 追加：日時の計算ロジック
         let displayDatetime = "";
+        
         if (schedule.datetime) {
           const current = parseDatetime(schedule.datetime);
-          
-          if (index > 0) {
-            const prev = parseDatetime(schedules[index - 1].datetime);
-            // 前の行程と日付が同じ場合、時間だけを取り出す
-            if (current.date && prev.date && current.date === prev.date) {
+
+          if (current.date) {
+            if (current.date === lastSeenDate) {
+              // 同じ日付なら時間のみ
               displayDatetime = current.time || ""; 
             } else {
+              // 新しい日付ならフル表示して記憶を更新
               displayDatetime = formatDatetimeDisplay(schedule.datetime);
+              lastSeenDate = current.date;
             }
           } else {
-            // 最初の1件目は必ずフル表示
+            // 時間のみ、または古いデータ
             displayDatetime = formatDatetimeDisplay(schedule.datetime);
           }
         }
 
-        // ▼ 追加：計算が終わったので return で画面表示を返す
         return (
           <li key={index} className="relative flex gap-4 pb-8 last:pb-0">
             {index < schedules.length - 1 ? (
@@ -57,13 +60,12 @@ export function TripTimeline({
               aria-hidden
             />
             <div className="min-w-0 flex-1">
-              {/* ▼ 修正: もともとの {formatDatetimeDisplay(...)} を {displayDatetime} に変更 */}
               {displayDatetime ? (
                 <p className="text-xs font-semibold tracking-wide text-primary-strong">
                   {displayDatetime}
                 </p>
               ) : null}
-            {/* ▼ どこで ＆ 地図を見る を横並びにする */}
+            
             <div className="mt-0.5 flex items-center gap-3">
               {schedule.location ? (
                 <p className="text-sm font-bold text-stone-800">
@@ -82,7 +84,6 @@ export function TripTimeline({
               ) : null}
             </div>
 
-            {/* ▼ 何をするか（場所と地図の下に表示） */}
             {schedule.activity ? (
               <TextWithLinks
                 text={schedule.activity}
@@ -91,8 +92,8 @@ export function TripTimeline({
             ) : null}
           </div>
         </li>
-      ); // 👈 追加：return の閉じ括弧
-    })}  // 👈 変更：)) を }) にする
+        );
+      })}
     </ol>
   );
 }

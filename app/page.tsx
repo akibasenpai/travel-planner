@@ -5,6 +5,8 @@ import { TripCard } from "@/components/trips/TripCard";
 import { getAllTrips } from "@/lib/db/trips";
 import { btnPrimary } from "@/lib/ui/classes";
 
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   let trips: Awaited<ReturnType<typeof getAllTrips>> = [];
   let error: string | null = null;

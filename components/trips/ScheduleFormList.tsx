@@ -36,6 +36,16 @@ export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps)
     onChange(schedules.filter((_, i) => i !== index));
   }
 
+  // ★ここに以下の関数を追加します
+  function moveSchedule(index: number, direction: 'up' | 'down') {
+    const newSchedules = [...schedules];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    const temp = newSchedules[index];
+    newSchedules[index] = newSchedules[targetIndex];
+    newSchedules[targetIndex] = temp;
+    onChange(newSchedules);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -57,9 +67,20 @@ export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps)
         return (
           <div key={index} className={`${card} space-y-4`}>
             <div className="flex items-center justify-between">
-              <span className="rounded-full bg-primary-light px-2.5 py-0.5 text-xs font-semibold text-primary-dark">
-                行程 {index + 1}
-              </span>
+              {/* ▼ 並び替えボタンを追加 */}
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-primary-light px-2.5 py-0.5 text-xs font-semibold text-primary-dark">
+                  行程 {index + 1}
+                </span>
+                {index > 0 && (
+                  <button type="button" onClick={() => moveSchedule(index, 'up')} className="text-xs text-stone-400 hover:text-primary-dark">↑</button>
+                )}
+                {index < schedules.length - 1 && (
+                  <button type="button" onClick={() => moveSchedule(index, 'down')} className="text-xs text-stone-400 hover:text-primary-dark">↓</button>
+                )}
+              </div>
+              {/* ▲ ここまで */}
+              
               {schedules.length > 1 ? (
                 <button
                   type="button"

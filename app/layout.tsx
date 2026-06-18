@@ -9,7 +9,7 @@ const notoSansJP = Noto_Sans_JP({
 });
 
 export const metadata: Metadata = {
-  title: "たびめも | 旅行のしおり",
+  title: "たびめも | 自分だけのアプリ",
   description: "スマホでサクッと作れる、旅行のしおり作成アプリ",
 };
 

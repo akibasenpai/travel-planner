@@ -22,7 +22,7 @@ export default async function HomePage() {
     <PageContainer>
       {/* 修正箇所1: タイトルとクレジットの表示 */}
       <div className="px-4 pt-6 pb-2">
-        <p className="text-sm font-bold text-teal-600 tracking-wider">
+        <p className="text-sm font-bold text-primary-strong tracking-wider">
           Tabimemo
         </p>
         <div className="flex items-baseline gap-3 mt-1">

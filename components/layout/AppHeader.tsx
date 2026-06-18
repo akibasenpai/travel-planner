@@ -28,7 +28,7 @@ export function AppHeader({
             </Link>
           ) : (
             <p className="text-xs font-semibold tracking-widest text-primary-strong">
-              TABIMEMO
+              Tabimemo
             </p>
           )}
           {title ? (

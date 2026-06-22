@@ -54,9 +54,10 @@ export function TripCard({ trip }: TripCardProps) {
       </Link>
 
       {/* ▼ 追加：右下に浮かぶ削除ボタン */}
+      {/* ▼ 修正：スマホでは常に表示（opacity-100）、PC（md以上）ではホバー時のみ表示 */}
       <button
         onClick={handleDelete}
-        className="absolute bottom-3 right-3 z-10 rounded-md bg-red-50 px-2.5 py-1.5 text-[11px] font-bold text-red-500 opacity-0 transition-all hover:bg-red-100 group-hover:opacity-100"
+        className="absolute bottom-3 right-3 z-10 rounded-md bg-red-50 px-2.5 py-1.5 text-[11px] font-bold text-red-500 transition-all hover:bg-red-100 opacity-100 md:opacity-0 md:group-hover:opacity-100"
       >
         🗑️ 削除
       </button>

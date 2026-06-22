@@ -85,3 +85,16 @@ export async function saveTrip(draft: TripDraft): Promise<Trip> {
 
   return mapRow(data);
 }
+
+// ▼ 追加：しおりをデータベースから完全に削除する機能
+export async function deleteTrip(id: string): Promise<void> {
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from("trips")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    throw new Error(`しおりの削除に失敗しました: ${error.message}`);
+  }
+}

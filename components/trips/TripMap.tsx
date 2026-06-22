@@ -30,17 +30,15 @@ export function TripMap({ schedules = [] }: TripMapProps) {
           v: "weekly",
         });
 
-        // ▼ 修正：正しい箱（ライブラリ）をそれぞれ開ける
         const mapsLib = await importLibrary("maps") as any;
-        const coreLib = await importLibrary("core") as any; // 👈 LatLngBoundsが入っている箱を追加
+        const coreLib = await importLibrary("core") as any;
         const markerLib = await importLibrary("marker") as any;
         const routesLib = await importLibrary("routes") as any;
 
         if (!isMounted || !mapRef.current) return;
 
-        // 箱の中から必要な部品を正確に取り出す
         const { Map, InfoWindow } = mapsLib;
-        const { LatLngBounds } = coreLib; // 👈 ここに修正
+        const { LatLngBounds } = coreLib;
         const { Marker } = markerLib;
         const { DirectionsService, DirectionsRenderer } = routesLib;
 
@@ -66,7 +64,7 @@ export function TripMap({ schedules = [] }: TripMapProps) {
           bounds.extend(position);
 
           const { time } = parseDatetime(schedule.datetime || "");
-          const timeDisplay = time ? `[${time}] ` : "";
+          const timeDisplay = time ? `[${time}]` : "";
 
           const marker = new Marker({
             position,
@@ -79,10 +77,11 @@ export function TripMap({ schedules = [] }: TripMapProps) {
             title: schedule.location || "",
           });
 
+          // ▼ 修正：余白(padding)を削り、文字を小さくして1行にまとめるなどスリム化
           const contentString = `
-            <div style="padding: 4px; color: #1c1917;">
-              <p style="font-size: 11px; font-weight: bold; margin: 0; color: #eab308;">${timeDisplay}</p>
-              <p style="font-size: 13px; font-weight: bold; margin: 2px 0 0 0;">${schedule.location || ""}</p>
+            <div style="padding: 1px 2px; color: #1c1917; line-height: 1.2; display: flex; gap: 4px; align-items: center;">
+              <span style="font-size: 10px; font-weight: bold; color: #eab308;">${timeDisplay}</span>
+              <span style="font-size: 11px; font-weight: bold;">${schedule.location || ""}</span>
             </div>
           `;
 
@@ -123,7 +122,7 @@ export function TripMap({ schedules = [] }: TripMapProps) {
               origin,
               destination,
               waypoints,
-              travelMode: 'DRIVING', // エラー防止のため直接文字列で指定
+              travelMode: 'DRIVING', 
             },
             (result: any, status: any) => {
               if (status === 'OK' && result) {

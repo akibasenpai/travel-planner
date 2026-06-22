@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react"; // 👈 追加：状態管理を使うため
+import { useState } from "react";
 import type { ScheduleItem } from "@/lib/types/trip";
 import { createEmptySchedule } from "@/lib/types/trip";
 import {
@@ -17,7 +17,6 @@ type ScheduleFormListProps = {
 };
 
 export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps) {
-  // ▼ 追加：解析中のローディング状態やメッセージを管理する変数
   const [isParsing, setIsParsing] = useState<Record<number, boolean>>({});
   const [parseMessage, setParseMessage] = useState<Record<number, string>>({});
 
@@ -50,11 +49,9 @@ export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps)
     onChange(newSchedules);
   }
 
-  // ▼ 追加：APIを呼び出してURLを解析するメイン処理
   async function handleParseUrl(index: number, url: string) {
     if (!url) return;
     
-    // 解析開始！
     setIsParsing((prev) => ({ ...prev, [index]: true }));
     setParseMessage((prev) => ({ ...prev, [index]: "" }));
 
@@ -67,7 +64,6 @@ export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps)
       const data = await res.json();
 
       if (res.ok && data.lat && data.lng) {
-        // 成功したら、座標を保存して、URLを長いものに書き換える
         const next = [...schedules];
         next[index] = { 
           ...next[index], 
@@ -160,14 +156,6 @@ export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps)
                   {formatDatetimeDisplay(schedule.datetime)}
                 </p>
               ) : null}
-              {hasLegacyDatetime ? (
-                <p className="mt-2 rounded-lg bg-primary-subtle px-2.5 py-2 text-xs text-stone-500">
-                  以前の入力: {schedule.datetime}
-                  <span className="mt-0.5 block text-[11px] text-stone-400">
-                    日付・時間を選ぶと上書きされます
-                  </span>
-                </p>
-              ) : null}
             </div>
 
             <label className="block">
@@ -183,7 +171,6 @@ export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps)
               />
             </label>
 
-            {/* ▼ 修正：URL入力欄の横に解析ボタンを追加！ */}
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-stone-500">
                 Google Map URL（任意）
@@ -206,11 +193,9 @@ export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps)
                 </button>
               </div>
               
-              {/* 解析結果のメッセージを表示 */}
               {parseMessage[index] && (
                 <p className="mt-1 text-[11px] text-stone-500">{parseMessage[index]}</p>
               )}
-              {/* すでに座標が保存されている場合はチェックマークを表示 */}
               {schedule.lat && schedule.lng && !parseMessage[index] ? (
                 <p className="mt-1 text-[11px] text-emerald-600">
                   ✅ 座標保存済み（{schedule.lat.toFixed(4)}, {schedule.lng.toFixed(4)}）
@@ -230,6 +215,41 @@ export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps)
                 className={`${inputField} resize-none`}
               />
             </label>
+
+            {/* ▼ 追加：最後の予定「以外」に移動手段の選択肢を表示 */}
+            {index < schedules.length - 1 && (
+              <div className="mt-4 rounded-xl border border-stone-100 bg-stone-50/50 p-3">
+                <span className="mb-2 block text-[11px] font-medium text-stone-500">
+                  次の目的地への移動手段
+                </span>
+                <div className="flex gap-4">
+                  <label className="flex cursor-pointer items-center gap-1.5 text-xs text-stone-600">
+                    <input 
+                      type="radio" 
+                      name={`travel_mode_${index}`}
+                      checked={(schedule.travel_mode || 'driving') === 'driving'} 
+                      onChange={() => updateSchedule(index, 'travel_mode', 'driving')} 
+                    /> 🚗 車
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-1.5 text-xs text-stone-600">
+                    <input 
+                      type="radio" 
+                      name={`travel_mode_${index}`}
+                      checked={schedule.travel_mode === 'transit'} 
+                      onChange={() => updateSchedule(index, 'travel_mode', 'transit')} 
+                    /> 🚃 電車
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-1.5 text-xs text-stone-600">
+                    <input 
+                      type="radio" 
+                      name={`travel_mode_${index}`}
+                      checked={schedule.travel_mode === 'walking'} 
+                      onChange={() => updateSchedule(index, 'travel_mode', 'walking')} 
+                    /> 🚶 徒歩
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
         );
       })}

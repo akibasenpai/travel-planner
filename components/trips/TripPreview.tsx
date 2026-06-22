@@ -1,6 +1,9 @@
+"use client"; // 👈 追加：データの受け渡し（状態管理）を行うため
+
+import { useState } from "react";
 import type { TripDraft } from "@/lib/types/trip";
 import { TripTimeline } from "@/components/trips/TripTimeline";
-import { TripMap } from "@/components/trips/TripMap"; // 👈 追加：地図の部品を読み込む
+import { TripMap } from "@/components/trips/TripMap";
 import { TextWithLinks } from "@/components/ui/TextWithLinks";
 
 type TripPreviewProps = {
@@ -9,6 +12,9 @@ type TripPreviewProps = {
 };
 
 export function TripPreview({ draft, screenshotMode = false }: TripPreviewProps) {
+  // ▼ 追加：地図から受け取った時間を一時的に保存する箱
+  const [durations, setDurations] = useState<string[]>([]);
+
   return (
     <article
       className={
@@ -32,12 +38,13 @@ export function TripPreview({ draft, screenshotMode = false }: TripPreviewProps)
         ) : null}
       </header>
 
-      {/* ▼ 追加：タイムラインの上にルートマップを配置！ */}
       <div className="mb-8">
-        <TripMap schedules={draft.schedules} />
+        {/* ▼ 修正：時間を計算し終わったら、上の setDurations に渡してもらう */}
+        <TripMap schedules={draft.schedules} onDurationsCalculated={setDurations} />
       </div>
 
-      <TripTimeline schedules={draft.schedules} screenshotMode={screenshotMode} />
+      {/* ▼ 修正：保存された時間をタイムラインに引き渡す！ */}
+      <TripTimeline schedules={draft.schedules} screenshotMode={screenshotMode} durations={durations} />
     </article>
   );
 }

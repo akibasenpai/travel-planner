@@ -7,9 +7,11 @@ import { parseDatetime } from "@/lib/utils/datetime";
 
 type TripMapProps = {
   schedules?: ScheduleItem[];
+  // ▼ 追加：計算した時間を親に渡すための枠組み
+  onDurationsCalculated?: (durations: string[]) => void;
 };
 
-export function TripMap({ schedules = [] }: TripMapProps) {
+export function TripMap({ schedules = [], onDurationsCalculated }: TripMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [mapError, setMapError] = useState(false);
 
@@ -77,7 +79,6 @@ export function TripMap({ schedules = [] }: TripMapProps) {
             title: schedule.location || "",
           });
 
-          // ▼ 修正：余白(padding)を削り、文字を小さくして1行にまとめるなどスリム化
           const contentString = `
             <div style="padding: 1px 2px; color: #1c1917; line-height: 1.2; display: flex; gap: 4px; align-items: center;">
               <span style="font-size: 10px; font-weight: bold; color: #eab308;">${timeDisplay}</span>
@@ -122,11 +123,28 @@ export function TripMap({ schedules = [] }: TripMapProps) {
               origin,
               destination,
               waypoints,
-              travelMode: 'DRIVING', 
+              travelMode: 'DRIVING', // ※現状はルート描画の仕様上「車ベース」の時間を取得します
             },
             (result: any, status: any) => {
               if (status === 'OK' && result) {
                 directionsRenderer.setDirections(result);
+                
+                // ▼ 追加：各区間の移動時間（〇〇分）を取り出して、親コンポーネントに渡す！
+                if (onDurationsCalculated && result.routes[0]?.legs) {
+                  const legs = result.routes[0].legs;
+                  const newDurations: string[] = [];
+                  let legIdx = 0;
+                  
+                  schedules.forEach((item, i) => {
+                    if (i < schedules.length - 1 && item.lat && item.lng) {
+                      newDurations[i] = legs[legIdx]?.duration?.text || "";
+                      legIdx++;
+                    } else {
+                      newDurations[i] = "";
+                    }
+                  });
+                  onDurationsCalculated(newDurations);
+                }
               }
             }
           );

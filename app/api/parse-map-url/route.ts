@@ -15,18 +15,19 @@ export async function POST(request: Request) {
     let lat = null;
     let lng = null;
 
-    // ② 長いURLの中から、正規表現を使って「緯度(lat)」と「経度(lng)」の数字を抜き出す
-    // パターンA: @35.681,139.767 のような形式
-    const matchAt = finalUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-    if (matchAt) {
-      lat = parseFloat(matchAt[1]);
-      lng = parseFloat(matchAt[2]);
+    // ▼ 修正：優先順位を変更！
+    // 優先順位1: まず「正確なピンの位置（!3d〇〇!4d〇〇）」を探す
+    const matchD = finalUrl.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+    
+    if (matchD) {
+      lat = parseFloat(matchD[1]);
+      lng = parseFloat(matchD[2]);
     } else {
-      // パターンB: !3d35.681!4d139.767 のような形式
-      const matchD = finalUrl.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-      if (matchD) {
-        lat = parseFloat(matchD[1]);
-        lng = parseFloat(matchD[2]);
+      // 優先順位2: ピンが見つからなかった場合のみ「画面の中央位置（@〇〇,〇〇）」を使う
+      const matchAt = finalUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (matchAt) {
+        lat = parseFloat(matchAt[1]);
+        lng = parseFloat(matchAt[2]);
       }
     }
 

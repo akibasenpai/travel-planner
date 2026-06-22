@@ -184,7 +184,8 @@ export function TripMap({ schedules = [], onDurationsCalculated }: TripMapProps)
 
   return (
     <div className="overflow-hidden rounded-2xl border border-stone-200 shadow-sm">
-      <div ref={mapRef} className="h-[400px] w-full bg-stone-50" />
+      {/* ▼ 修正：高さを 400px から 70vh（画面の70%）に変更し、PC用の最大サイズも指定 */}
+      <div ref={mapRef} className="h-[70vh] min-h-[400px] max-h-[700px] w-full bg-stone-50" />
     </div>
   );
 }

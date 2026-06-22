@@ -30,7 +30,6 @@ export function TripTimeline({
           const current = parseDatetime(schedule.datetime);
           const currentDeparture = parseDatetime(schedule.departure_datetime || "");
           
-          // ▼ 修正：出発時間があれば「到着時間 〜 出発時間」の形を作る
           let timeStr = current.time || "";
           if (currentDeparture.time) {
             timeStr = timeStr ? `${timeStr} 〜 ${currentDeparture.time}` : `〜 ${currentDeparture.time}`;
@@ -40,9 +39,8 @@ export function TripTimeline({
             if (current.date === lastSeenDate) {
               displayDatetime = timeStr; 
             } else {
-              // ▼ 新しい日付なら日付と時間を改行で分ける
               const formattedDateStr = formatDatetimeDisplay(schedule.datetime);
-              const datePart = formattedDateStr.split(" ")[0] || formattedDateStr; // 日付部分だけを取得
+              const datePart = formattedDateStr.split(" ")[0] || formattedDateStr;
               displayDatetime = timeStr ? `${datePart}\n${timeStr}` : datePart;
               lastSeenDate = current.date;
             }
@@ -60,25 +58,31 @@ export function TripTimeline({
           <li key={index} className="relative flex gap-4 pb-12 last:pb-0">
             {index < schedules.length - 1 ? (
               <>
+                {/* ▼ 修正：丸の大きさに合わせて線の位置を微調整（left-[9px]） */}
                 <span
-                  className="absolute left-[7px] top-3 h-[calc(100%-12px)] w-0.5 bg-primary"
+                  className="absolute left-[9px] top-5 h-[calc(100%-20px)] w-0.5 bg-primary"
                   aria-hidden
                 />
-                <div className="absolute bottom-3 left-[20px] z-20 flex items-center gap-1 rounded-md border border-stone-200 bg-white px-2 py-1 text-[11px] font-bold text-stone-600 shadow-sm">
+                <div className="absolute bottom-3 left-[24px] z-20 flex items-center gap-1 rounded-md border border-stone-200 bg-white px-2 py-1 text-[11px] font-bold text-stone-600 shadow-sm">
                   <span className="text-stone-400">↓</span>
                   <span>{travelModeIcon}</span>
                   {durationText && <span className="ml-0.5 text-primary-strong">{durationText}</span>}
                 </div>
               </>
             ) : null}
+            
+            {/* ▼ 修正：ただの丸（dot）から、地図とリンクする番号入りのバッジに変更！ */}
             <span
-              className={`relative z-10 mt-1.5 h-3.5 w-3.5 shrink-0 rounded-full border-2 ${
+              className={`relative z-10 mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-[10px] font-bold ${
                 screenshotMode
-                  ? "border-primary-strong bg-primary-strong"
-                  : "border-primary bg-white"
+                  ? "border-primary-strong bg-primary-strong text-white"
+                  : "border-primary bg-white text-primary-dark"
               }`}
               aria-hidden
-            />
+            >
+              {index + 1}
+            </span>
+
             <div className="min-w-0 flex-1">
               {displayDatetime ? (
                 <p className="whitespace-pre-wrap text-xs font-semibold tracking-wide text-primary-strong">

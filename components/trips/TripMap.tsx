@@ -1,139 +1,163 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { Loader } from "@googlemaps/js-api-loader";
+import { useEffect, useRef, useState } from "react";
+// ▼ 修正：古い Loader ではなく、新しいバージョンの関数を読み込む
+import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
 import type { ScheduleItem } from "@/lib/types/trip";
 import { parseDatetime } from "@/lib/utils/datetime";
 
 type TripMapProps = {
-  schedules: ScheduleItem[];
+  schedules?: ScheduleItem[];
 };
 
-export function TripMap({ schedules }: TripMapProps) {
+export function TripMap({ schedules = [] }: TripMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
+  const [mapError, setMapError] = useState(false);
 
-  // 座標が保存されている工程だけを絞り込む
-  const validCoordinates = schedules.filter(
-    (item) => item.lat !== undefined && item.lng !== undefined
+  const safeSchedules = Array.isArray(schedules) ? schedules : [];
+  const validCoordinates = safeSchedules.filter(
+    (item) => item && item.lat !== undefined && item.lng !== undefined
   );
 
   useEffect(() => {
     if (!mapRef.current || validCoordinates.length === 0) return;
 
-    const loader = new Loader({
-      apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
-      version: "weekly",
-    });
+    let isMounted = true;
 
-    // ▼ 修正：(loader as any) を使って、Vercelの厳しすぎる文法チェックを強制突破します！
-    (loader as any).load().then(() => {
-      if (!mapRef.current) return;
-
-      // 1. 地図の初期化（最初のスポットを中心に配置）
-      const firstLocation = {
-        lat: validCoordinates[0].lat!,
-        lng: validCoordinates[0].lng!,
-      };
-
-      const map = new google.maps.Map(mapRef.current, {
-        center: firstLocation,
-        zoom: 13,
-        mapId: "DEMO_MAP_ID", // 必須の識別子
-        mapTypeControl: false,
-        fullscreenControl: false,
-        streetViewControl: false,
-      });
-
-      const bounds = new google.maps.LatLngBounds();
-      const infoWindow = new google.maps.InfoWindow();
-
-      // 2. ピン（マーカー）と吹き出し（インフォウィンドウ）の設定
-      validCoordinates.forEach((schedule, index) => {
-        const position = { lat: schedule.lat!, lng: schedule.lng! };
-        bounds.extend(position);
-
-        // 解析した時間データを取得
-        const { time } = parseDatetime(schedule.datetime);
-        const timeDisplay = time ? `[${time}] ` : "";
-
-        // ピンを立てる
-        const marker = new google.maps.Marker({
-          position,
-          map,
-          // ピンの上に数字を表示（1, 2, 3...）
-          label: {
-            text: String(index + 1),
-            color: "#white",
-            fontWeight: "bold",
-          },
-          title: schedule.location,
+    async function initMap() {
+      try {
+        // 1. 新しい setOptions で API キーを登録
+        setOptions({
+          key: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
+          v: "weekly",
         });
 
-        // ピンの上に常に表示される「時間＋場所」の吹き出し
-        const contentString = `
-          <div style="padding: 4px; color: #1c1917;">
-            <p style="font-size: 11px; font-weight: bold; margin: 0; color: #eab308;">${timeDisplay}</p>
-            <p style="font-size: 13px; font-weight: bold; margin: 2px 0 0 0;">${schedule.location}</p>
-          </div>
-        `;
+        // 2. 新しい importLibrary で地図のパーツをダウンロード
+        const mapsLib = await importLibrary("maps") as any;
+        const markerLib = await importLibrary("marker") as any;
+        const routesLib = await importLibrary("routes") as any;
 
-        // 常に吹き出しを開いた状態にする
-        const markerInfoWindow = new google.maps.InfoWindow({
-          content: contentString,
-          disableAutoPan: true, // 画面が勝手に動くのを防ぐ
-        });
-        markerInfoWindow.open(map, marker);
+        if (!isMounted || !mapRef.current) return;
 
-        // ピンをクリックした時にも詳細が出るようにする
-        marker.addListener("click", () => {
-          infoWindow.setContent(contentString);
-          infoWindow.open(map, marker);
-        });
-      });
+        // ダウンロードしたパーツから必要なクラスを取り出す
+        const { Map, LatLngBounds, InfoWindow } = mapsLib;
+        const { Marker } = markerLib;
+        const { DirectionsService, DirectionsRenderer, TravelMode, DirectionsStatus } = routesLib;
 
-      // 3. ルート（線）を引く
-      if (validCoordinates.length > 1) {
-        const directionsService = new google.maps.DirectionsService();
-        const directionsRenderer = new google.maps.DirectionsRenderer({
-          map,
-          suppressMarkers: true, // デフォルトの無機質なピンを非表示
-          polylineOptions: {
-            strokeColor: "#eab308", // アプリのプライマリカラー（黄色系）に合わせる
-            strokeWeight: 5,
-            strokeOpacity: 0.8,
-          },
+        const firstLocation = {
+          lat: validCoordinates[0].lat!,
+          lng: validCoordinates[0].lng!,
+        };
+
+        const map = new Map(mapRef.current, {
+          center: firstLocation,
+          zoom: 13,
+          mapId: "DEMO_MAP_ID",
+          mapTypeControl: false,
+          fullscreenControl: false,
+          streetViewControl: false,
         });
 
-        const origin = { lat: validCoordinates[0].lat!, lng: validCoordinates[0].lng! };
-        const destination = { lat: validCoordinates[validCoordinates.length - 1].lat!, lng: validCoordinates[validCoordinates.length - 1].lng! };
-        
-        // 間の経由地を設定
-        const waypoints = validCoordinates.slice(1, -1).map((place) => ({
-          location: { lat: place.lat!, lng: place.lng! },
-          stopover: true,
-        }));
+        const bounds = new LatLngBounds();
+        const infoWindow = new InfoWindow();
 
-        directionsService.route(
-          {
-            origin,
-            destination,
-            waypoints,
-            travelMode: google.maps.TravelMode.DRIVING, // 車ベースで線を引く
-          },
-          (result, status) => {
-            if (status === google.maps.DirectionsStatus.OK && result) {
-              directionsRenderer.setDirections(result);
+        validCoordinates.forEach((schedule, index) => {
+          const position = { lat: schedule.lat!, lng: schedule.lng! };
+          bounds.extend(position);
+
+          const { time } = parseDatetime(schedule.datetime || "");
+          const timeDisplay = time ? `[${time}] ` : "";
+
+          // 新しい Marker クラスでピンを立てる
+          const marker = new Marker({
+            position,
+            map,
+            label: {
+              text: String(index + 1),
+              color: "#white",
+              fontWeight: "bold",
+            },
+            title: schedule.location || "",
+          });
+
+          const contentString = `
+            <div style="padding: 4px; color: #1c1917;">
+              <p style="font-size: 11px; font-weight: bold; margin: 0; color: #eab308;">${timeDisplay}</p>
+              <p style="font-size: 13px; font-weight: bold; margin: 2px 0 0 0;">${schedule.location || ""}</p>
+            </div>
+          `;
+
+          const markerInfoWindow = new InfoWindow({
+            content: contentString,
+            disableAutoPan: true,
+          });
+          markerInfoWindow.open(map, marker);
+
+          marker.addListener("click", () => {
+            infoWindow.setContent(contentString);
+            infoWindow.open(map, marker);
+          });
+        });
+
+        // ルート（線）を引く
+        if (validCoordinates.length > 1) {
+          const directionsService = new DirectionsService();
+          const directionsRenderer = new DirectionsRenderer({
+            map,
+            suppressMarkers: true,
+            polylineOptions: {
+              strokeColor: "#eab308",
+              strokeWeight: 5,
+              strokeOpacity: 0.8,
+            },
+          });
+
+          const origin = { lat: validCoordinates[0].lat!, lng: validCoordinates[0].lng! };
+          const destination = { lat: validCoordinates[validCoordinates.length - 1].lat!, lng: validCoordinates[validCoordinates.length - 1].lng! };
+          
+          const waypoints = validCoordinates.slice(1, -1).map((place) => ({
+            location: { lat: place.lat!, lng: place.lng! },
+            stopover: true,
+          }));
+
+          directionsService.route(
+            {
+              origin,
+              destination,
+              waypoints,
+              travelMode: TravelMode.DRIVING,
+            },
+            (result: any, status: any) => {
+              if (status === DirectionsStatus.OK && result) {
+                directionsRenderer.setDirections(result);
+              }
             }
-          }
-        );
-      }
+          );
+        }
 
-      // 全てのピンが画面に収まるように、地図の表示倍率を自動調整する
-      if (validCoordinates.length > 1) {
-        map.fitBounds(bounds);
+        if (validCoordinates.length > 1) {
+          map.fitBounds(bounds);
+        }
+      } catch (err) {
+        console.error("地図の初期化エラー:", err);
+        if (isMounted) setMapError(true);
       }
-    });
+    }
+
+    initMap();
+
+    return () => {
+      isMounted = false;
+    };
   }, [schedules]);
+
+  if (mapError) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-sm text-red-500 shadow-sm">
+        🗺️ 地図の読み込みに失敗しました。少し時間をおいて再読み込みするか、APIキーの設定を確認してください。
+      </div>
+    );
+  }
 
   if (validCoordinates.length === 0) {
     return (

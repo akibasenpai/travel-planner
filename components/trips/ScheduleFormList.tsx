@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react"; // 👈 追加：状態管理を使うため
 import type { ScheduleItem } from "@/lib/types/trip";
 import { createEmptySchedule } from "@/lib/types/trip";
 import {
@@ -16,7 +17,11 @@ type ScheduleFormListProps = {
 };
 
 export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps) {
-  function updateSchedule(index: number, field: keyof ScheduleItem, value: string) {
+  // ▼ 追加：解析中のローディング状態やメッセージを管理する変数
+  const [isParsing, setIsParsing] = useState<Record<number, boolean>>({});
+  const [parseMessage, setParseMessage] = useState<Record<number, string>>({});
+
+  function updateSchedule(index: number, field: keyof ScheduleItem, value: any) {
     const next = schedules.map((item, i) =>
       i === index ? { ...item, [field]: value } : item,
     );
@@ -36,7 +41,6 @@ export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps)
     onChange(schedules.filter((_, i) => i !== index));
   }
 
-  // ★ここに以下の関数を追加します
   function moveSchedule(index: number, direction: 'up' | 'down') {
     const newSchedules = [...schedules];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
@@ -44,6 +48,43 @@ export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps)
     newSchedules[index] = newSchedules[targetIndex];
     newSchedules[targetIndex] = temp;
     onChange(newSchedules);
+  }
+
+  // ▼ 追加：APIを呼び出してURLを解析するメイン処理
+  async function handleParseUrl(index: number, url: string) {
+    if (!url) return;
+    
+    // 解析開始！
+    setIsParsing((prev) => ({ ...prev, [index]: true }));
+    setParseMessage((prev) => ({ ...prev, [index]: "" }));
+
+    try {
+      const res = await fetch("/api/parse-map-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.lat && data.lng) {
+        // 成功したら、座標を保存して、URLを長いものに書き換える
+        const next = [...schedules];
+        next[index] = { 
+          ...next[index], 
+          lat: data.lat, 
+          lng: data.lng, 
+          map_url: data.finalUrl || url 
+        };
+        onChange(next);
+        setParseMessage((prev) => ({ ...prev, [index]: "✅ 座標を取得しました！" }));
+      } else {
+        setParseMessage((prev) => ({ ...prev, [index]: "❌ " + (data.error || "取得に失敗しました") }));
+      }
+    } catch (e) {
+      setParseMessage((prev) => ({ ...prev, [index]: "❌ 通信エラーが発生しました" }));
+    } finally {
+      setIsParsing((prev) => ({ ...prev, [index]: false }));
+    }
   }
 
   return (
@@ -67,7 +108,6 @@ export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps)
         return (
           <div key={index} className={`${card} space-y-4`}>
             <div className="flex items-center justify-between">
-              {/* ▼ 並び替えボタンを追加 */}
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-primary-light px-2.5 py-0.5 text-xs font-semibold text-primary-dark">
                   行程 {index + 1}
@@ -79,7 +119,6 @@ export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps)
                   <button type="button" onClick={() => moveSchedule(index, 'down')} className="text-xs text-stone-400 hover:text-primary-dark">↓</button>
                 )}
               </div>
-              {/* ▲ ここまで */}
               
               {schedules.length > 1 ? (
                 <button
@@ -144,17 +183,39 @@ export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps)
               />
             </label>
 
+            {/* ▼ 修正：URL入力欄の横に解析ボタンを追加！ */}
             <label className="block">
               <span className="mb-1 block text-xs font-medium text-stone-500">
                 Google Map URL（任意）
               </span>
-              <input
-                type="url"
-                value={schedule.map_url}
-                onChange={(e) => updateSchedule(index, "map_url", e.target.value)}
-                placeholder="https://maps.google.com/..."
-                className={inputField}
-              />
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={schedule.map_url}
+                  onChange={(e) => updateSchedule(index, "map_url", e.target.value)}
+                  placeholder="https://maps.google.com/..."
+                  className={`${inputField} flex-1`}
+                />
+                <button
+                  type="button"
+                  disabled={!schedule.map_url || isParsing[index]}
+                  onClick={() => handleParseUrl(index, schedule.map_url)}
+                  className="shrink-0 rounded-lg bg-stone-100 px-3 py-2 text-xs font-bold text-stone-600 transition-colors hover:bg-stone-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isParsing[index] ? "解析中..." : "解析する"}
+                </button>
+              </div>
+              
+              {/* 解析結果のメッセージを表示 */}
+              {parseMessage[index] && (
+                <p className="mt-1 text-[11px] text-stone-500">{parseMessage[index]}</p>
+              )}
+              {/* すでに座標が保存されている場合はチェックマークを表示 */}
+              {schedule.lat && schedule.lng && !parseMessage[index] ? (
+                <p className="mt-1 text-[11px] text-emerald-600">
+                  ✅ 座標保存済み（{schedule.lat.toFixed(4)}, {schedule.lng.toFixed(4)}）
+                </p>
+              ) : null}
             </label>
 
             <label className="block">

@@ -3,6 +3,10 @@ export type ScheduleItem = {
   location: string;
   map_url: string;
   activity: string;
+  // ▼ 追加：座標と移動手段を保存するための枠
+  lat?: number;
+  lng?: number;
+  travel_mode?: "driving" | "walking" | "transit";
 };
 
 export type Trip = {
@@ -27,6 +31,7 @@ export function createEmptySchedule(): ScheduleItem {
     location: "",
     map_url: "",
     activity: "",
+    // 新規作成時は空っぽ（undefined）にしておくのでここでは追加不要
   };
 }
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-// ▼ 修正：古い Loader ではなく、新しいバージョンの関数を読み込む
 import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
 import type { ScheduleItem } from "@/lib/types/trip";
 import { parseDatetime } from "@/lib/utils/datetime";
@@ -26,23 +25,24 @@ export function TripMap({ schedules = [] }: TripMapProps) {
 
     async function initMap() {
       try {
-        // 1. 新しい setOptions で API キーを登録
         setOptions({
           key: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
           v: "weekly",
         });
 
-        // 2. 新しい importLibrary で地図のパーツをダウンロード
+        // ▼ 修正：正しい箱（ライブラリ）をそれぞれ開ける
         const mapsLib = await importLibrary("maps") as any;
+        const coreLib = await importLibrary("core") as any; // 👈 LatLngBoundsが入っている箱を追加
         const markerLib = await importLibrary("marker") as any;
         const routesLib = await importLibrary("routes") as any;
 
         if (!isMounted || !mapRef.current) return;
 
-        // ダウンロードしたパーツから必要なクラスを取り出す
-        const { Map, LatLngBounds, InfoWindow } = mapsLib;
+        // 箱の中から必要な部品を正確に取り出す
+        const { Map, InfoWindow } = mapsLib;
+        const { LatLngBounds } = coreLib; // 👈 ここに修正
         const { Marker } = markerLib;
-        const { DirectionsService, DirectionsRenderer, TravelMode, DirectionsStatus } = routesLib;
+        const { DirectionsService, DirectionsRenderer } = routesLib;
 
         const firstLocation = {
           lat: validCoordinates[0].lat!,
@@ -68,7 +68,6 @@ export function TripMap({ schedules = [] }: TripMapProps) {
           const { time } = parseDatetime(schedule.datetime || "");
           const timeDisplay = time ? `[${time}] ` : "";
 
-          // 新しい Marker クラスでピンを立てる
           const marker = new Marker({
             position,
             map,
@@ -99,7 +98,6 @@ export function TripMap({ schedules = [] }: TripMapProps) {
           });
         });
 
-        // ルート（線）を引く
         if (validCoordinates.length > 1) {
           const directionsService = new DirectionsService();
           const directionsRenderer = new DirectionsRenderer({
@@ -125,10 +123,10 @@ export function TripMap({ schedules = [] }: TripMapProps) {
               origin,
               destination,
               waypoints,
-              travelMode: TravelMode.DRIVING,
+              travelMode: 'DRIVING', // エラー防止のため直接文字列で指定
             },
             (result: any, status: any) => {
-              if (status === DirectionsStatus.OK && result) {
+              if (status === 'OK' && result) {
                 directionsRenderer.setDirections(result);
               }
             }

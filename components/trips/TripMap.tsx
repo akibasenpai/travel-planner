@@ -24,10 +24,14 @@ export function TripMap({ schedules }: TripMapProps) {
     const loader = new Loader({
       apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
       version: "weekly",
-      libraries: ["maps"],
     });
 
-    loader.load().then(async () => {
+    // ▼ 修正：load() の代わりに、最新の importLibrary() を使って必要な機能を読み込む
+    Promise.all([
+      loader.importLibrary("maps"),
+      loader.importLibrary("routes"),
+      loader.importLibrary("marker")
+    ]).then(() => {
       if (!mapRef.current) return;
 
       // 1. 地図の初期化（最初のスポットを中心に配置）
@@ -39,7 +43,7 @@ export function TripMap({ schedules }: TripMapProps) {
       const map = new google.maps.Map(mapRef.current, {
         center: firstLocation,
         zoom: 13,
-        mapId: "DEMO_MAP_ID", // 必須の識別子（仮）
+        mapId: "DEMO_MAP_ID", // 必須の識別子
         mapTypeControl: false,
         fullscreenControl: false,
         streetViewControl: false,
@@ -109,7 +113,7 @@ export function TripMap({ schedules }: TripMapProps) {
         const origin = { lat: validCoordinates[0].lat!, lng: validCoordinates[0].lng! };
         const destination = { lat: validCoordinates[validCoordinates.length - 1].lat!, lng: validCoordinates[validCoordinates.length - 1].lng! };
         
-        // 間の経由地を設定（最大8箇所まで）
+        // 間の経由地を設定
         const waypoints = validCoordinates.slice(1, -1).map((place) => ({
           location: { lat: place.lat!, lng: place.lng! },
           stopover: true,

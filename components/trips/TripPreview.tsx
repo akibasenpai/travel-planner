@@ -1,5 +1,6 @@
 import type { TripDraft } from "@/lib/types/trip";
 import { TripTimeline } from "@/components/trips/TripTimeline";
+import { TripMap } from "@/components/trips/TripMap"; // 👈 追加：地図の部品を読み込む
 import { TextWithLinks } from "@/components/ui/TextWithLinks";
 
 type TripPreviewProps = {
@@ -30,6 +31,12 @@ export function TripPreview({ draft, screenshotMode = false }: TripPreviewProps)
           />
         ) : null}
       </header>
+
+      {/* ▼ 追加：タイムラインの上にルートマップを配置！ */}
+      <div className="mb-8">
+        <TripMap schedules={draft.schedules} />
+      </div>
+
       <TripTimeline schedules={draft.schedules} screenshotMode={screenshotMode} />
     </article>
   );

@@ -5,7 +5,7 @@ import { TextWithLinks } from "@/components/ui/TextWithLinks";
 type TripTimelineProps = {
   schedules: ScheduleItem[];
   screenshotMode?: boolean;
-  durations?: string[]; // 👈 追加：プレビュー画面から時間を受け取る
+  durations?: string[];
 };
 
 export function TripTimeline({
@@ -28,28 +28,35 @@ export function TripTimeline({
         
         if (schedule.datetime) {
           const current = parseDatetime(schedule.datetime);
+          const currentDeparture = parseDatetime(schedule.departure_datetime || "");
+          
+          // ▼ 修正：出発時間があれば「到着時間 〜 出発時間」の形を作る
+          let timeStr = current.time || "";
+          if (currentDeparture.time) {
+            timeStr = timeStr ? `${timeStr} 〜 ${currentDeparture.time}` : `〜 ${currentDeparture.time}`;
+          }
 
           if (current.date) {
             if (current.date === lastSeenDate) {
-              displayDatetime = current.time || ""; 
+              displayDatetime = timeStr; 
             } else {
-              const formatted = formatDatetimeDisplay(schedule.datetime);
-              displayDatetime = formatted.replace(" ", "\n");
+              // ▼ 新しい日付なら日付と時間を改行で分ける
+              const formattedDateStr = formatDatetimeDisplay(schedule.datetime);
+              const datePart = formattedDateStr.split(" ")[0] || formattedDateStr; // 日付部分だけを取得
+              displayDatetime = timeStr ? `${datePart}\n${timeStr}` : datePart;
               lastSeenDate = current.date;
             }
           } else {
-            displayDatetime = formatDatetimeDisplay(schedule.datetime).replace(" ", "\n");
+            displayDatetime = timeStr || formatDatetimeDisplay(schedule.datetime).replace(" ", "\n");
           }
         }
 
-        // ▼ 追加：移動手段のアイコンと、渡された移動時間を準備
         const travelModeIcon = 
           schedule.travel_mode === 'transit' ? '🚃' :
           schedule.travel_mode === 'walking' ? '🚶' : '🚗';
         const durationText = durations[index] || "";
 
         return (
-          // ▼ 修正：バッジが入るように余白(pb-12)を広げる
           <li key={index} className="relative flex gap-4 pb-12 last:pb-0">
             {index < schedules.length - 1 ? (
               <>
@@ -57,7 +64,6 @@ export function TripTimeline({
                   className="absolute left-[7px] top-3 h-[calc(100%-12px)] w-0.5 bg-primary"
                   aria-hidden
                 />
-                {/* ▼ 追加：線の上に被せる「移動ナビゲーション」のバッジ */}
                 <div className="absolute bottom-3 left-[20px] z-20 flex items-center gap-1 rounded-md border border-stone-200 bg-white px-2 py-1 text-[11px] font-bold text-stone-600 shadow-sm">
                   <span className="text-stone-400">↓</span>
                   <span>{travelModeIcon}</span>

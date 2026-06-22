@@ -1,9 +1,9 @@
 export type ScheduleItem = {
   datetime: string;
+  departure_datetime?: string; // ▼ 追加：出発時間を保存するための新しい枠
   location: string;
   map_url: string;
   activity: string;
-  // ▼ 追加：座標と移動手段を保存するための枠
   lat?: number;
   lng?: number;
   travel_mode?: "driving" | "walking" | "transit";
@@ -28,10 +28,10 @@ export type TripDraft = {
 export function createEmptySchedule(): ScheduleItem {
   return {
     datetime: "",
+    departure_datetime: "", // ▼ 追加：新規作成時は空っぽで用意する
     location: "",
     map_url: "",
     activity: "",
-    // 新規作成時は空っぽ（undefined）にしておくのでここでは追加不要
   };
 }
 

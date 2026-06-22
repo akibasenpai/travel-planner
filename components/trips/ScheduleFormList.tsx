@@ -31,6 +31,11 @@ export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps)
     updateSchedule(index, "datetime", combineDatetime(date, time));
   }
 
+  // ▼ 追加：出発時間を更新する関数
+  function updateDepartureDatetime(index: number, date: string, time: string) {
+    updateSchedule(index, "departure_datetime", combineDatetime(date, time));
+  }
+
   function addSchedule() {
     onChange([...schedules, createEmptySchedule()]);
   }
@@ -98,8 +103,7 @@ export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps)
 
       {schedules.map((schedule, index) => {
         const { date, time } = parseDatetime(schedule.datetime);
-        const hasLegacyDatetime =
-          schedule.datetime !== "" && !isStructuredDatetime(schedule.datetime);
+        const { time: departureTime } = parseDatetime(schedule.departure_datetime || "");
 
         return (
           <div key={index} className={`${card} space-y-4`}>
@@ -127,6 +131,7 @@ export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps)
               ) : null}
             </div>
 
+            {/* ▼ 修正：時間を「到着」と「出発」の横並び2つに変更 */}
             <div>
               <span className="mb-2 block text-xs font-medium text-stone-500">
                 日時
@@ -137,25 +142,34 @@ export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps)
                   <input
                     type="date"
                     value={date}
-                    onChange={(e) => updateDatetime(index, e.target.value, time)}
+                    onChange={(e) => {
+                      updateDatetime(index, e.target.value, time);
+                      updateDepartureDatetime(index, e.target.value, departureTime); // 日付が変わったら出発日も自動で合わせる
+                    }}
                     className={inputField}
                   />
                 </label>
-                <label className="block">
-                  <span className="mb-1 block text-[11px] text-stone-400">時間</span>
-                  <input
-                    type="time"
-                    value={time}
-                    onChange={(e) => updateDatetime(index, date, e.target.value)}
-                    className={inputField}
-                  />
-                </label>
+                <div className="flex gap-2">
+                  <label className="block flex-1">
+                    <span className="mb-1 block text-[11px] text-stone-400">到着時間</span>
+                    <input
+                      type="time"
+                      value={time}
+                      onChange={(e) => updateDatetime(index, date, e.target.value)}
+                      className={inputField}
+                    />
+                  </label>
+                  <label className="block flex-1">
+                    <span className="mb-1 block text-[11px] text-stone-400">出発時間</span>
+                    <input
+                      type="time"
+                      value={departureTime}
+                      onChange={(e) => updateDepartureDatetime(index, date, e.target.value)}
+                      className={inputField}
+                    />
+                  </label>
+                </div>
               </div>
-              {date || time ? (
-                <p className="mt-2 text-xs font-medium text-primary-strong">
-                  {formatDatetimeDisplay(schedule.datetime)}
-                </p>
-              ) : null}
             </div>
 
             <label className="block">
@@ -216,7 +230,6 @@ export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps)
               />
             </label>
 
-            {/* ▼ 追加：最後の予定「以外」に移動手段の選択肢を表示 */}
             {index < schedules.length - 1 && (
               <div className="mt-4 rounded-xl border border-stone-100 bg-stone-50/50 p-3">
                 <span className="mb-2 block text-[11px] font-medium text-stone-500">

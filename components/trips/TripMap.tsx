@@ -86,12 +86,7 @@ export function TripMap({ schedules = [], onDurationsCalculated }: TripMapProps)
             </div>
           `;
 
-          const markerInfoWindow = new InfoWindow({
-            content: contentString,
-            disableAutoPan: true,
-          });
-          markerInfoWindow.open(map, marker);
-
+          // ピンをクリックした時だけ吹き出しを開く
           marker.addListener("click", () => {
             infoWindow.setContent(contentString);
             infoWindow.open(map, marker);

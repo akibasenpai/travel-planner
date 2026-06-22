@@ -7,11 +7,11 @@ import { parseDatetime } from "@/lib/utils/datetime";
 
 type TripMapProps = {
   schedules?: ScheduleItem[];
-  // ▼ 追加：計算した時間を親に渡すための枠組み
   onDurationsCalculated?: (durations: string[]) => void;
+  showRoute?: boolean; // 👈 追加：ルート表示の指令を受け取る
 };
 
-export function TripMap({ schedules = [], onDurationsCalculated }: TripMapProps) {
+export function TripMap({ schedules = [], onDurationsCalculated, showRoute = true }: TripMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [mapError, setMapError] = useState(false);
 
@@ -86,14 +86,19 @@ export function TripMap({ schedules = [], onDurationsCalculated }: TripMapProps)
             </div>
           `;
 
-          // ピンをクリックした時だけ吹き出しを開く
+          const markerInfoWindow = new InfoWindow({
+            content: contentString,
+            disableAutoPan: true,
+          });
+
           marker.addListener("click", () => {
             infoWindow.setContent(contentString);
             infoWindow.open(map, marker);
           });
         });
 
-        if (validCoordinates.length > 1) {
+        // ▼ 修正：showRoute が true の時だけルートを描画する
+        if (showRoute && validCoordinates.length > 1) {
           const directionsService = new DirectionsService();
           const directionsRenderer = new DirectionsRenderer({
             map,
@@ -118,13 +123,12 @@ export function TripMap({ schedules = [], onDurationsCalculated }: TripMapProps)
               origin,
               destination,
               waypoints,
-              travelMode: 'DRIVING', // ※現状はルート描画の仕様上「車ベース」の時間を取得します
+              travelMode: 'DRIVING',
             },
             (result: any, status: any) => {
               if (status === 'OK' && result) {
                 directionsRenderer.setDirections(result);
                 
-                // ▼ 追加：各区間の移動時間（〇〇分）を取り出して、親コンポーネントに渡す！
                 if (onDurationsCalculated && result.routes[0]?.legs) {
                   const legs = result.routes[0].legs;
                   const newDurations: string[] = [];
@@ -143,6 +147,9 @@ export function TripMap({ schedules = [], onDurationsCalculated }: TripMapProps)
               }
             }
           );
+        } else if (onDurationsCalculated) {
+          // ルートを描画しない場合は、移動時間を空っぽにする
+          onDurationsCalculated([]);
         }
 
         if (validCoordinates.length > 1) {
@@ -159,7 +166,7 @@ export function TripMap({ schedules = [], onDurationsCalculated }: TripMapProps)
     return () => {
       isMounted = false;
     };
-  }, [schedules]);
+  }, [schedules, showRoute]); // 👈 依存関係に showRoute を追加
 
   if (mapError) {
     return (
@@ -179,7 +186,6 @@ export function TripMap({ schedules = [], onDurationsCalculated }: TripMapProps)
 
   return (
     <div className="overflow-hidden rounded-2xl border border-stone-200 shadow-sm">
-      {/* ▼ 修正：高さを 400px から 70vh（画面の70%）に変更し、PC用の最大サイズも指定 */}
       <div ref={mapRef} className="h-[70vh] min-h-[400px] max-h-[700px] w-full bg-stone-50" />
     </div>
   );

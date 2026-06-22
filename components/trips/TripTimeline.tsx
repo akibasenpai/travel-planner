@@ -6,12 +6,14 @@ type TripTimelineProps = {
   schedules: ScheduleItem[];
   screenshotMode?: boolean;
   durations?: string[];
+  showRoute?: boolean; // 👈 追加：ルート表示の指令を受け取る
 };
 
 export function TripTimeline({
   schedules,
   screenshotMode = false,
   durations = [],
+  showRoute = true,
 }: TripTimelineProps) {
   if (schedules.length === 0) {
     return (
@@ -58,20 +60,21 @@ export function TripTimeline({
           <li key={index} className="relative flex gap-4 pb-12 last:pb-0">
             {index < schedules.length - 1 ? (
               <>
-                {/* ▼ 修正：丸の大きさに合わせて線の位置を微調整（left-[9px]） */}
                 <span
                   className="absolute left-[9px] top-5 h-[calc(100%-20px)] w-0.5 bg-primary"
                   aria-hidden
                 />
-                <div className="absolute bottom-3 left-[24px] z-20 flex items-center gap-1 rounded-md border border-stone-200 bg-white px-2 py-1 text-[11px] font-bold text-stone-600 shadow-sm">
-                  <span className="text-stone-400">↓</span>
-                  <span>{travelModeIcon}</span>
-                  {durationText && <span className="ml-0.5 text-primary-strong">{durationText}</span>}
-                </div>
+                {/* ▼ 修正：showRoute が true の時だけ移動アイコン（↓🚗 30分）を表示する */}
+                {showRoute && (
+                  <div className="absolute bottom-3 left-[24px] z-20 flex items-center gap-1 rounded-md border border-stone-200 bg-white px-2 py-1 text-[11px] font-bold text-stone-600 shadow-sm">
+                    <span className="text-stone-400">↓</span>
+                    <span>{travelModeIcon}</span>
+                    {durationText && <span className="ml-0.5 text-primary-strong">{durationText}</span>}
+                  </div>
+                )}
               </>
             ) : null}
             
-            {/* ▼ 修正：ただの丸（dot）から、地図とリンクする番号入りのバッジに変更！ */}
             <span
               className={`relative z-10 mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-[10px] font-bold ${
                 screenshotMode

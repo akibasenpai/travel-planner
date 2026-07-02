@@ -143,8 +143,15 @@ export function ScheduleFormList({ schedules, onChange }: ScheduleFormListProps)
                     type="date"
                     value={date}
                     onChange={(e) => {
-                      updateDatetime(index, e.target.value, time);
-                      updateDepartureDatetime(index, e.target.value, departureTime); // 日付が変わったら出発日も自動で合わせる
+                      const newDate = e.target.value;
+                      // ▼ 修正：到着と出発の2つの日付を「同時に1回で」更新し、上書きバグを防ぐ
+                      const next = [...schedules];
+                      next[index] = {
+                        ...next[index],
+                        datetime: combineDatetime(newDate, time),
+                        departure_datetime: combineDatetime(newDate, departureTime),
+                      };
+                      onChange(next);
                     }}
                     className={inputField}
                   />

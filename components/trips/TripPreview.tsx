@@ -14,6 +14,7 @@ type TripPreviewProps = {
 
 export function TripPreview({ draft, screenshotMode = false }: TripPreviewProps) {
   const [durations, setDurations] = useState<string[]>([]);
+  const [distances, setDistances] = useState<string[]>([]); // ▼ 追加：距離を保存する枠
   const [selectedDate, setSelectedDate] = useState<string>("all");
 
   const uniqueDates = useMemo(() => {
@@ -33,6 +34,7 @@ export function TripPreview({ draft, screenshotMode = false }: TripPreviewProps)
   const handleTabChange = (date: string) => {
     setSelectedDate(date);
     setDurations([]); 
+    setDistances([]); // ▼ 追加：タブ切り替え時に距離もリセット
   };
 
   const formatTabDate = (dateStr: string) => {
@@ -42,7 +44,6 @@ export function TripPreview({ draft, screenshotMode = false }: TripPreviewProps)
     return `${dateObj.getMonth() + 1}/${dateObj.getDate()}(${days[dateObj.getDay()]})`;
   };
 
-  // ▼ 追加：「2日以上ある」かつ「すべてタブ」の時はルートを非表示にするという判定
   const showRoute = !(uniqueDates.length > 1 && selectedDate === "all");
 
   return (
@@ -100,12 +101,21 @@ export function TripPreview({ draft, screenshotMode = false }: TripPreviewProps)
       )}
 
       <div className="mb-8">
-        {/* ▼ 修正：ルートを表示していいかの判定（showRoute）を渡す */}
-        <TripMap schedules={displayedSchedules} onDurationsCalculated={setDurations} showRoute={showRoute} />
+        <TripMap 
+          schedules={displayedSchedules} 
+          onDurationsCalculated={setDurations}
+          onDistancesCalculated={setDistances} // ▼ 追加：マップから距離を受け取る
+          showRoute={showRoute} 
+        />
       </div>
 
-      {/* ▼ 修正：タイムラインにも判定を渡す */}
-      <TripTimeline schedules={displayedSchedules} screenshotMode={screenshotMode} durations={durations} showRoute={showRoute} />
+      <TripTimeline 
+        schedules={displayedSchedules} 
+        screenshotMode={screenshotMode} 
+        durations={durations} 
+        distances={distances} // ▼ 追加：タイムラインに距離を渡す
+        showRoute={showRoute} 
+      />
     </article>
   );
 }

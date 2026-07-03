@@ -6,13 +6,15 @@ type TripTimelineProps = {
   schedules: ScheduleItem[];
   screenshotMode?: boolean;
   durations?: string[];
-  showRoute?: boolean; // 👈 追加：ルート表示の指令を受け取る
+  distances?: string[]; // ▼ 追加：距離を受け取る
+  showRoute?: boolean;
 };
 
 export function TripTimeline({
   schedules,
   screenshotMode = false,
   durations = [],
+  distances = [], // ▼ 追加
   showRoute = true,
 }: TripTimelineProps) {
   if (schedules.length === 0) {
@@ -54,7 +56,9 @@ export function TripTimeline({
         const travelModeIcon = 
           schedule.travel_mode === 'transit' ? '🚃' :
           schedule.travel_mode === 'walking' ? '🚶' : '🚗';
+        
         const durationText = durations[index] || "";
+        const distanceText = distances[index] || ""; // ▼ 追加
 
         return (
           <li key={index} className="relative flex gap-4 pb-12 last:pb-0">
@@ -64,12 +68,13 @@ export function TripTimeline({
                   className="absolute left-[9px] top-5 h-[calc(100%-20px)] w-0.5 bg-primary"
                   aria-hidden
                 />
-                {/* ▼ 修正：showRoute が true の時だけ移動アイコン（↓🚗 30分）を表示する */}
                 {showRoute && (
-                  <div className="absolute bottom-3 left-[24px] z-20 flex items-center gap-1 rounded-md border border-stone-200 bg-white px-2 py-1 text-[11px] font-bold text-stone-600 shadow-sm">
+                  <div className="absolute bottom-3 left-[24px] z-20 flex items-center gap-1 rounded-md border border-stone-200 bg-white px-2 py-1 text-[11px] font-bold text-stone-600 shadow-sm whitespace-nowrap">
                     <span className="text-stone-400">↓</span>
                     <span>{travelModeIcon}</span>
                     {durationText && <span className="ml-0.5 text-primary-strong">{durationText}</span>}
+                    {/* ▼ 追加：時間の右となりに距離を表示する */}
+                    {distanceText && <span className="ml-0.5 font-medium text-stone-400">({distanceText})</span>}
                   </div>
                 )}
               </>

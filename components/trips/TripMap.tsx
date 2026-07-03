@@ -8,10 +8,11 @@ import { parseDatetime } from "@/lib/utils/datetime";
 type TripMapProps = {
   schedules?: ScheduleItem[];
   onDurationsCalculated?: (durations: string[]) => void;
-  showRoute?: boolean; // 👈 追加：ルート表示の指令を受け取る
+  onDistancesCalculated?: (distances: string[]) => void;
+  showRoute?: boolean;
 };
 
-export function TripMap({ schedules = [], onDurationsCalculated, showRoute = true }: TripMapProps) {
+export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalculated, showRoute = true }: TripMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [mapError, setMapError] = useState(false);
 
@@ -97,7 +98,6 @@ export function TripMap({ schedules = [], onDurationsCalculated, showRoute = tru
           });
         });
 
-        // ▼ 修正：showRoute が true の時だけルートを描画する
         if (showRoute && validCoordinates.length > 1) {
           const directionsService = new DirectionsService();
           const directionsRenderer = new DirectionsRenderer({
@@ -129,27 +129,43 @@ export function TripMap({ schedules = [], onDurationsCalculated, showRoute = tru
               if (status === 'OK' && result) {
                 directionsRenderer.setDirections(result);
                 
-                if (onDurationsCalculated && result.routes[0]?.legs) {
+                if (result.routes[0]?.legs) {
                   const legs = result.routes[0].legs;
                   const newDurations: string[] = [];
+                  const newDistances: string[] = [];
                   let legIdx = 0;
                   
                   schedules.forEach((item, i) => {
                     if (i < schedules.length - 1 && item.lat && item.lng) {
                       newDurations[i] = legs[legIdx]?.duration?.text || "";
+                      
+                      const distanceMeters = legs[legIdx]?.distance?.value;
+                      if (distanceMeters !== undefined) {
+                        if (distanceMeters >= 1000) {
+                          // ▼ 修正：kmの場合は「小数点第一位」まで表示し、それ以下は四捨五入する
+                          newDistances[i] = `${(distanceMeters / 1000).toFixed(1)}km`;
+                        } else {
+                          newDistances[i] = `${distanceMeters}m`;
+                        }
+                      } else {
+                        newDistances[i] = "";
+                      }
+
                       legIdx++;
                     } else {
                       newDurations[i] = "";
+                      newDistances[i] = "";
                     }
                   });
-                  onDurationsCalculated(newDurations);
+                  if (onDurationsCalculated) onDurationsCalculated(newDurations);
+                  if (onDistancesCalculated) onDistancesCalculated(newDistances);
                 }
               }
             }
           );
-        } else if (onDurationsCalculated) {
-          // ルートを描画しない場合は、移動時間を空っぽにする
-          onDurationsCalculated([]);
+        } else {
+          if (onDurationsCalculated) onDurationsCalculated([]);
+          if (onDistancesCalculated) onDistancesCalculated([]);
         }
 
         if (validCoordinates.length > 1) {
@@ -166,7 +182,7 @@ export function TripMap({ schedules = [], onDurationsCalculated, showRoute = tru
     return () => {
       isMounted = false;
     };
-  }, [schedules, showRoute]); // 👈 依存関係に showRoute を追加
+  }, [schedules, showRoute]);
 
   if (mapError) {
     return (

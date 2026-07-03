@@ -8,41 +8,49 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "URLがありません" }, { status: 400 });
     }
 
-    // ① Googleにこっそりアクセスして、短縮URLから元の長いURLにリダイレクトさせる
-    const response = await fetch(url, { redirect: "follow" });
+    // ▼ 修正のキモ：サーバーが「PCのChromeブラウザ」のふりをしてアクセスする
+    const response = await fetch(url, {
+      method: "GET",
+      redirect: "follow",
+      headers: {
+        // ここでPCブラウザの身分証明（User-Agent）を提示する
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+      },
+    });
+
+    // リダイレクト（転送）されきった最終的な長いURLを取得
     const finalUrl = response.url;
 
-    let lat = null;
-    let lng = null;
+    let lat: number | null = null;
+    let lng: number | null = null;
 
-    // ▼ 修正：優先順位を変更！
-    // 優先順位1: まず「正確なピンの位置（!3d〇〇!4d〇〇）」を探す
-    const matchD = finalUrl.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-    
-    if (matchD) {
-      lat = parseFloat(matchD[1]);
-      lng = parseFloat(matchD[2]);
+    // 1. ピンの正確な座標 (!3d...!4d...) を優先して探す
+    const pinMatch = finalUrl.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+    if (pinMatch) {
+      lat = parseFloat(pinMatch[1]);
+      lng = parseFloat(pinMatch[2]);
     } else {
-      // 優先順位2: ピンが見つからなかった場合のみ「画面の中央位置（@〇〇,〇〇）」を使う
-      const matchAt = finalUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-      if (matchAt) {
-        lat = parseFloat(matchAt[1]);
-        lng = parseFloat(matchAt[2]);
+      // 2. ピンが見つからなければ、画面中央の座標 (@...,...) を探す
+      const centerMatch = finalUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (centerMatch) {
+        lat = parseFloat(centerMatch[1]);
+        lng = parseFloat(centerMatch[2]);
       }
     }
 
-    // ③ うまく抜き出せたら画面側に返す
-    if (lat && lng) {
+    if (lat !== null && lng !== null) {
       return NextResponse.json({ lat, lng, finalUrl });
     } else {
       return NextResponse.json(
         { error: "URLから座標を見つけられませんでした", finalUrl },
-        { status: 404 }
+        { status: 400 }
       );
     }
   } catch (error) {
+    console.error("Map URL Parse Error:", error);
     return NextResponse.json(
-      { error: "解析サーバーでエラーが発生しました" },
+      { error: "サーバーでの解析処理に失敗しました" },
       { status: 500 }
     );
   }

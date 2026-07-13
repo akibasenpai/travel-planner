@@ -101,101 +101,104 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
         if (showRoute && validCoordinates.length > 1) {
           const directionsService = new DirectionsService();
 
-          const fetchRouteSegment = (origin: any, destination: any, mode: string) => {
-            return new Promise<any>((resolve) => {
-              let travelMode = 'DRIVING';
-              let strokeColor = '#eab308'; // 車は黄色
-
-              if (mode === 'transit') {
-                travelMode = 'TRANSIT';
-                strokeColor = '#3b82f6'; // 電車は青色
-              } else if (mode === 'walking') {
-                travelMode = 'WALKING';
-                strokeColor = '#22c55e'; // 徒歩は緑色
-              }
-
-              // ▼ 修正：リクエストデータを作成
-              const request: any = {
-                origin,
-                destination,
-                travelMode
-              };
-
-              // ▼ 修正：電車の場合は「出発時刻（計算時点の現在時刻）」を必須で渡す
-              if (travelMode === 'TRANSIT') {
-                request.transitOptions = {
-                  departureTime: new Date(),
-                };
-              }
-
-              directionsService.route(
-                request,
-                (result: any, status: any) => {
-                  if (status === 'OK' && result) {
-                    const renderer = new DirectionsRenderer({
-                      map,
-                      suppressMarkers: true,
-                      preserveViewport: true, // ▼ 修正：ルート描画時に勝手にズームする機能をオフ！
-                      polylineOptions: { strokeColor, strokeWeight: 5, strokeOpacity: 0.8 }
-                    });
-                    renderer.setDirections(result);
-                    
-                    const leg = result.routes[0].legs[0];
-                    resolve({
-                      duration: leg.duration?.text || "",
-                      distance: leg.distance?.value || 0
-                    });
-                  } else {
-                    console.warn(`ルート計算失敗 (${travelMode}):`, status);
-                    resolve({ duration: "", distance: 0 }); 
-                  }
+          // ▼ 修正：安全にルートを引く専用関数（エラー時の自動補正付き）
+          const fetchRouteSegment = async (origin: any, destination: any, mode: string) => {
+            const tryRoute = (tMode: string): Promise<any> => {
+              return new Promise((resolve) => {
+                const request: any = { origin, destination, travelMode: tMode };
+                if (tMode === 'TRANSIT') {
+                  request.transitOptions = { departureTime: new Date() };
                 }
-              );
-            });
+                directionsService.route(request, (result: any, status: any) => {
+                  resolve({ result, status });
+                });
+              });
+            };
+
+            let travelMode = 'DRIVING';
+            let strokeColor = '#eab308'; // 車（黄）
+            if (mode === 'transit') { travelMode = 'TRANSIT'; strokeColor = '#3b82f6'; } // 電車（青）
+            else if (mode === 'walking') { travelMode = 'WALKING'; strokeColor = '#22c55e'; } // 徒歩（緑）
+
+            let { result, status } = await tryRoute(travelMode);
+
+            // APIの連続アクセス制限に引っかかったら、1秒休んでから再チャレンジ
+            if (status === 'OVER_QUERY_LIMIT') {
+              await new Promise(r => setTimeout(r, 1000));
+              const retry = await tryRoute(travelMode);
+              result = retry.result;
+              status = retry.status;
+            }
+
+            // 電車ルートが見つからない（駅が近すぎる等）場合は、徒歩ルート（緑）で自動補正する
+            if (status === 'ZERO_RESULTS' && travelMode === 'TRANSIT') {
+              const fallback = await tryRoute('WALKING');
+              result = fallback.result;
+              status = fallback.status;
+              strokeColor = '#22c55e';
+            }
+
+            if (status === 'OK' && result) {
+              const renderer = new DirectionsRenderer({
+                map,
+                suppressMarkers: true,
+                preserveViewport: true, // 勝手にズームするのを防ぐ
+                polylineOptions: { strokeColor, strokeWeight: 5, strokeOpacity: 0.8 }
+              });
+              renderer.setDirections(result);
+              const leg = result.routes[0].legs[0];
+              return {
+                duration: leg.duration?.text || "",
+                distance: leg.distance?.value || 0
+              };
+            }
+            return { duration: "計算不可", distance: 0 };
           };
 
-          const routePromises = [];
-          for (let i = 0; i < validCoordinates.length - 1; i++) {
-            const origin = { lat: validCoordinates[i].lat!, lng: validCoordinates[i].lng! };
-            const destination = { lat: validCoordinates[i + 1].lat!, lng: validCoordinates[i + 1].lng! };
-            const travelMode = validCoordinates[i].travel_mode || 'driving';
-            routePromises.push(fetchRouteSegment(origin, destination, travelMode));
-          }
-
-          Promise.all(routePromises).then((results) => {
+          // ▼ 修正：1区間ずつ「順番に」計算し、配列のズレを完璧に防ぐ
+          const processRoutes = async () => {
             const newDurations: string[] = [];
             const newDistances: string[] = [];
-            let resultIdx = 0;
 
-            schedules.forEach((item, i) => {
-              if (i < schedules.length - 1 && item.lat && item.lng) {
-                const res = results[resultIdx];
+            for (let i = 0; i < safeSchedules.length - 1; i++) {
+              const current = safeSchedules[i];
+              const next = safeSchedules[i + 1];
+
+              if (current.lat && current.lng && next.lat && next.lng) {
+                const origin = { lat: current.lat, lng: current.lng };
+                const destination = { lat: next.lat, lng: next.lng };
+                const travelMode = current.travel_mode || 'driving';
+
+                const res = await fetchRouteSegment(origin, destination, travelMode);
+                if (!isMounted) return; // 途中で画面が切り替わったら計算をストップ
+
                 newDurations[i] = res.duration;
-
                 if (res.distance >= 1000) {
                   newDistances[i] = `${(res.distance / 1000).toFixed(1)}km`;
                 } else if (res.distance > 0) {
                   newDistances[i] = `${res.distance}m`;
                 } else {
-                  newDistances[i] = "";
+                  newDistances[i] = res.duration === "計算不可" ? "-" : "";
                 }
-                resultIdx++;
               } else {
                 newDurations[i] = "";
                 newDistances[i] = "";
               }
-            });
+            }
 
-            if (onDurationsCalculated) onDurationsCalculated(newDurations);
-            if (onDistancesCalculated) onDistancesCalculated(newDistances);
-          });
+            if (isMounted) {
+              if (onDurationsCalculated) onDurationsCalculated(newDurations);
+              if (onDistancesCalculated) onDistancesCalculated(newDistances);
+            }
+          };
+
+          processRoutes();
 
         } else {
           if (onDurationsCalculated) onDurationsCalculated([]);
           if (onDistancesCalculated) onDistancesCalculated([]);
         }
 
-        // ▼ 全てのピンが収まるように広域表示に合わせる（ここはそのまま活きます！）
         if (validCoordinates.length > 1) {
           map.fitBounds(bounds);
         }

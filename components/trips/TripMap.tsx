@@ -101,21 +101,39 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
         if (showRoute && validCoordinates.length > 1) {
           const directionsService = new DirectionsService();
 
-          // ▼ 修正：現在の入力データ（currentItem）も受け取るように変更
           const fetchRouteSegment = async (origin: any, destination: any, mode: string, currentItem: any) => {
             const tryRoute = (tMode: string): Promise<any> => {
               return new Promise((resolve) => {
                 const request: any = { origin, destination, travelMode: tMode };
                 
                 if (tMode === 'TRANSIT') {
-                  let departureTime = new Date(); // デフォルトは現在時刻
-                  // ▼ 修正：しおりに入力された日時を出発時刻として使う
+                  let departureTime = new Date();
+                  // デフォルトは明日の昼12時（終電後や夜中対策として日中を強制指定）
+                  departureTime.setDate(departureTime.getDate() + 1);
+                  departureTime.setHours(12, 0, 0, 0);
+
                   const targetDatetime = currentItem.departure_datetime || currentItem.datetime;
                   if (targetDatetime) {
-                    const parsedDate = new Date(targetDatetime);
-                    // ※APIは「過去の時刻」を指定するとエラーになるため、未来の場合のみ適用
-                    if (!isNaN(parsedDate.getTime()) && parsedDate.getTime() > Date.now()) {
-                      departureTime = parsedDate;
+                    // ▼ 罠1対策：iPhone/Safari用にスペースをTに変換
+                    const safeStr = targetDatetime.replace(' ', 'T');
+                    const parsedDate = new Date(safeStr);
+                    
+                    if (!isNaN(parsedDate.getTime())) {
+                      if (parsedDate.getTime() > Date.now()) {
+                        departureTime = parsedDate; // 未来ならそのまま使う
+                      } else {
+                        // 過去の日付なら、APIエラーを避けるため「時間はそのままで明日の日付」にする
+                        const futureDate = new Date();
+                        futureDate.setDate(futureDate.getDate() + 1);
+                        futureDate.setHours(parsedDate.getHours(), parsedDate.getMinutes(), 0, 0);
+                        departureTime = futureDate;
+                      }
+                    } else {
+                      // 時間だけ（例: "09:00"）入力されていた場合の救済
+                      const timeMatch = targetDatetime.match(/(\d{1,2}):(\d{2})/);
+                      if (timeMatch) {
+                        departureTime.setHours(parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), 0, 0);
+                      }
                     }
                   }
                   request.transitOptions = { departureTime };
@@ -141,11 +159,12 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
               status = retry.status;
             }
 
+            // ▼ 罠2対策：電車ルートが見つからなかった場合、徒歩(緑)ではなく車(黄)で代替する
             if (status === 'ZERO_RESULTS' && travelMode === 'TRANSIT') {
-              const fallback = await tryRoute('WALKING');
+              const fallback = await tryRoute('DRIVING');
               result = fallback.result;
               status = fallback.status;
-              strokeColor = '#22c55e';
+              strokeColor = '#eab308'; // 色も黄色に
             }
 
             if (status === 'OK' && result) {
@@ -178,7 +197,6 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
                 const destination = { lat: next.lat, lng: next.lng };
                 const travelMode = current.travel_mode || 'driving';
 
-                // ▼ 修正：出発時間を取り出すために、currentデータも渡す
                 const res = await fetchRouteSegment(origin, destination, travelMode, current);
                 if (!isMounted) return;
 
@@ -225,7 +243,6 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
     };
   }, [schedules, showRoute]);
 
-  // ... (以下略。下部は変更ありません)
   if (mapError) {
     return (
       <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-sm text-red-500 shadow-sm">

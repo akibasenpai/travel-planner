@@ -6,7 +6,7 @@ type TripTimelineProps = {
   schedules: ScheduleItem[];
   screenshotMode?: boolean;
   durations?: string[];
-  distances?: string[]; // ▼ 追加：距離を受け取る
+  distances?: string[];
   showRoute?: boolean;
 };
 
@@ -14,7 +14,7 @@ export function TripTimeline({
   schedules,
   screenshotMode = false,
   durations = [],
-  distances = [], // ▼ 追加
+  distances = [],
   showRoute = true,
 }: TripTimelineProps) {
   if (schedules.length === 0) {
@@ -58,7 +58,18 @@ export function TripTimeline({
           schedule.travel_mode === 'walking' ? '🚶' : '🚗';
         
         const durationText = durations[index] || "";
-        const distanceText = distances[index] || ""; // ▼ 追加
+        const distanceText = distances[index] || "";
+
+        // ▼ 追加：次の目的地がある場合、区間ごとのGoogleマップ起動URLを生成する
+        const nextSchedule = schedules[index + 1];
+        let segmentMapUrl = "";
+        if (schedule.lat && schedule.lng && nextSchedule?.lat && nextSchedule?.lng) {
+          const origin = `${schedule.lat},${schedule.lng}`;
+          const destination = `${nextSchedule.lat},${nextSchedule.lng}`;
+          // URL用に移動手段を変換（車: driving, 電車: transit, 徒歩: walking）
+          const mode = schedule.travel_mode === 'transit' ? 'transit' : schedule.travel_mode === 'walking' ? 'walking' : 'driving';
+          segmentMapUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=${mode}`;
+        }
 
         return (
           <li key={index} className="relative flex gap-4 pb-12 last:pb-0">
@@ -73,8 +84,20 @@ export function TripTimeline({
                     <span className="text-stone-400">↓</span>
                     <span>{travelModeIcon}</span>
                     {durationText && <span className="ml-0.5 text-primary-strong">{durationText}</span>}
-                    {/* ▼ 追加：時間の右となりに距離を表示する */}
                     {distanceText && <span className="ml-0.5 font-medium text-stone-400">({distanceText})</span>}
+                    
+                    {/* ▼ 追加：区間ごとのナビゲーション起動ボタン（スクショ時は非表示） */}
+                    {segmentMapUrl && !screenshotMode && (
+                      <a
+                        href={segmentMapUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-1.5 flex items-center gap-0.5 rounded bg-stone-100 px-1.5 py-0.5 text-[10px] text-stone-500 transition-colors hover:bg-primary hover:text-white"
+                        title="Googleマップでこの区間の経路を開く"
+                      >
+                        ナビ ↗
+                      </a>
+                    )}
                   </div>
                 )}
               </>

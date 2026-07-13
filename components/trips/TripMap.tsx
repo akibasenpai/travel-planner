@@ -108,28 +108,24 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
                 
                 if (tMode === 'TRANSIT') {
                   let departureTime = new Date();
-                  // デフォルトは明日の昼12時（終電後や夜中対策として日中を強制指定）
                   departureTime.setDate(departureTime.getDate() + 1);
                   departureTime.setHours(12, 0, 0, 0);
 
                   const targetDatetime = currentItem.departure_datetime || currentItem.datetime;
                   if (targetDatetime) {
-                    // ▼ 罠1対策：iPhone/Safari用にスペースをTに変換
                     const safeStr = targetDatetime.replace(' ', 'T');
                     const parsedDate = new Date(safeStr);
                     
                     if (!isNaN(parsedDate.getTime())) {
                       if (parsedDate.getTime() > Date.now()) {
-                        departureTime = parsedDate; // 未来ならそのまま使う
+                        departureTime = parsedDate;
                       } else {
-                        // 過去の日付なら、APIエラーを避けるため「時間はそのままで明日の日付」にする
                         const futureDate = new Date();
                         futureDate.setDate(futureDate.getDate() + 1);
                         futureDate.setHours(parsedDate.getHours(), parsedDate.getMinutes(), 0, 0);
                         departureTime = futureDate;
                       }
                     } else {
-                      // 時間だけ（例: "09:00"）入力されていた場合の救済
                       const timeMatch = targetDatetime.match(/(\d{1,2}):(\d{2})/);
                       if (timeMatch) {
                         departureTime.setHours(parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), 0, 0);
@@ -140,7 +136,7 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
                 }
 
                 directionsService.route(request, (result: any, status: any) => {
-                  resolve({ result, status });
+                  resolve({ result, status, request });
                 });
               });
             };
@@ -150,21 +146,32 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
             if (mode === 'transit') { travelMode = 'TRANSIT'; strokeColor = '#3b82f6'; }
             else if (mode === 'walking') { travelMode = 'WALKING'; strokeColor = '#22c55e'; }
 
-            let { result, status } = await tryRoute(travelMode);
+            let { result, status, request } = await tryRoute(travelMode);
 
             if (status === 'OVER_QUERY_LIMIT') {
               await new Promise(r => setTimeout(r, 1000));
               const retry = await tryRoute(travelMode);
               result = retry.result;
               status = retry.status;
+              request = retry.request;
             }
 
-            // ▼ 罠2対策：電車ルートが見つからなかった場合、徒歩(緑)ではなく車(黄)で代替する
-            if (status === 'ZERO_RESULTS' && travelMode === 'TRANSIT') {
+            // ▼ 追加：エラー時の詳細な原因をコンソールに出力する調査用コード
+            if (status !== 'OK' && travelMode === 'TRANSIT') {
+              console.error("🚨 電車ルート計算エラー発生！詳細データ:", {
+                "エラー理由(status)": status,
+                "出発地(origin)": origin,
+                "目的地(destination)": destination,
+                "送信した時間(departureTime)": request.transitOptions?.departureTime?.toLocaleString(),
+                "元のスケジュールデータ": currentItem
+              });
+            }
+
+            if (status !== 'OK' && travelMode === 'TRANSIT') {
               const fallback = await tryRoute('DRIVING');
               result = fallback.result;
               status = fallback.status;
-              strokeColor = '#eab308'; // 色も黄色に
+              strokeColor = '#eab308'; 
             }
 
             if (status === 'OK' && result) {

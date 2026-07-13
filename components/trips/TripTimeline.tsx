@@ -87,7 +87,7 @@ export function TripTimeline({
                     {distanceText && <span className="ml-0.5 font-medium text-stone-400">({distanceText})</span>}
                     
                     {/* ▼ 追加：区間ごとのナビゲーション起動ボタン（スクショ時は非表示） */}
-                    {segmentMapUrl && !screenshotMode && (
+                    {segmentMapUrl && (
                       <a
                         href={segmentMapUrl}
                         target="_blank"

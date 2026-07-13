@@ -101,14 +101,26 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
         if (showRoute && validCoordinates.length > 1) {
           const directionsService = new DirectionsService();
 
-          // ▼ 修正：安全にルートを引く専用関数（エラー時の自動補正付き）
-          const fetchRouteSegment = async (origin: any, destination: any, mode: string) => {
+          // ▼ 修正：現在の入力データ（currentItem）も受け取るように変更
+          const fetchRouteSegment = async (origin: any, destination: any, mode: string, currentItem: any) => {
             const tryRoute = (tMode: string): Promise<any> => {
               return new Promise((resolve) => {
                 const request: any = { origin, destination, travelMode: tMode };
+                
                 if (tMode === 'TRANSIT') {
-                  request.transitOptions = { departureTime: new Date() };
+                  let departureTime = new Date(); // デフォルトは現在時刻
+                  // ▼ 修正：しおりに入力された日時を出発時刻として使う
+                  const targetDatetime = currentItem.departure_datetime || currentItem.datetime;
+                  if (targetDatetime) {
+                    const parsedDate = new Date(targetDatetime);
+                    // ※APIは「過去の時刻」を指定するとエラーになるため、未来の場合のみ適用
+                    if (!isNaN(parsedDate.getTime()) && parsedDate.getTime() > Date.now()) {
+                      departureTime = parsedDate;
+                    }
+                  }
+                  request.transitOptions = { departureTime };
                 }
+
                 directionsService.route(request, (result: any, status: any) => {
                   resolve({ result, status });
                 });
@@ -116,13 +128,12 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
             };
 
             let travelMode = 'DRIVING';
-            let strokeColor = '#eab308'; // 車（黄）
-            if (mode === 'transit') { travelMode = 'TRANSIT'; strokeColor = '#3b82f6'; } // 電車（青）
-            else if (mode === 'walking') { travelMode = 'WALKING'; strokeColor = '#22c55e'; } // 徒歩（緑）
+            let strokeColor = '#eab308';
+            if (mode === 'transit') { travelMode = 'TRANSIT'; strokeColor = '#3b82f6'; }
+            else if (mode === 'walking') { travelMode = 'WALKING'; strokeColor = '#22c55e'; }
 
             let { result, status } = await tryRoute(travelMode);
 
-            // APIの連続アクセス制限に引っかかったら、1秒休んでから再チャレンジ
             if (status === 'OVER_QUERY_LIMIT') {
               await new Promise(r => setTimeout(r, 1000));
               const retry = await tryRoute(travelMode);
@@ -130,7 +141,6 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
               status = retry.status;
             }
 
-            // 電車ルートが見つからない（駅が近すぎる等）場合は、徒歩ルート（緑）で自動補正する
             if (status === 'ZERO_RESULTS' && travelMode === 'TRANSIT') {
               const fallback = await tryRoute('WALKING');
               result = fallback.result;
@@ -142,7 +152,7 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
               const renderer = new DirectionsRenderer({
                 map,
                 suppressMarkers: true,
-                preserveViewport: true, // 勝手にズームするのを防ぐ
+                preserveViewport: true,
                 polylineOptions: { strokeColor, strokeWeight: 5, strokeOpacity: 0.8 }
               });
               renderer.setDirections(result);
@@ -155,7 +165,6 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
             return { duration: "計算不可", distance: 0 };
           };
 
-          // ▼ 修正：1区間ずつ「順番に」計算し、配列のズレを完璧に防ぐ
           const processRoutes = async () => {
             const newDurations: string[] = [];
             const newDistances: string[] = [];
@@ -169,8 +178,9 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
                 const destination = { lat: next.lat, lng: next.lng };
                 const travelMode = current.travel_mode || 'driving';
 
-                const res = await fetchRouteSegment(origin, destination, travelMode);
-                if (!isMounted) return; // 途中で画面が切り替わったら計算をストップ
+                // ▼ 修正：出発時間を取り出すために、currentデータも渡す
+                const res = await fetchRouteSegment(origin, destination, travelMode, current);
+                if (!isMounted) return;
 
                 newDurations[i] = res.duration;
                 if (res.distance >= 1000) {
@@ -215,6 +225,7 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
     };
   }, [schedules, showRoute]);
 
+  // ... (以下略。下部は変更ありません)
   if (mapError) {
     return (
       <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-sm text-red-500 shadow-sm">

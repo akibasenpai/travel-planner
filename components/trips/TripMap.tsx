@@ -101,17 +101,18 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
         if (showRoute && validCoordinates.length > 1) {
           const directionsService = new DirectionsService();
 
-          const fetchRouteSegment = async (origin: any, destination: any, mode: string, currentItem: any) => {
-            const tryRoute = (tMode: string): Promise<any> => {
+          const fetchRouteSegment = async (current: any, next: any, mode: string) => {
+            // 計算処理をまとめた関数（出発地・目的地を柔軟に変えられるように）
+            const tryRoute = (originArg: any, destArg: any, tMode: string): Promise<any> => {
               return new Promise((resolve) => {
-                const request: any = { origin, destination, travelMode: tMode };
+                const request: any = { origin: originArg, destination: destArg, travelMode: tMode };
                 
                 if (tMode === 'TRANSIT') {
                   let departureTime = new Date();
                   departureTime.setDate(departureTime.getDate() + 1);
                   departureTime.setHours(12, 0, 0, 0);
 
-                  const targetDatetime = currentItem.departure_datetime || currentItem.datetime;
+                  const targetDatetime = current.departure_datetime || current.datetime;
                   if (targetDatetime) {
                     const safeStr = targetDatetime.replace(' ', 'T');
                     const parsedDate = new Date(safeStr);
@@ -136,7 +137,7 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
                 }
 
                 directionsService.route(request, (result: any, status: any) => {
-                  resolve({ result, status, request });
+                  resolve({ result, status });
                 });
               });
             };
@@ -146,32 +147,39 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
             if (mode === 'transit') { travelMode = 'TRANSIT'; strokeColor = '#3b82f6'; }
             else if (mode === 'walking') { travelMode = 'WALKING'; strokeColor = '#22c55e'; }
 
-            let { result, status, request } = await tryRoute(travelMode);
+            const originLatLng = { lat: current.lat, lng: current.lng };
+            const destLatLng = { lat: next.lat, lng: next.lng };
+
+            // 1回目の挑戦：正確な「座標」で計算
+            let { result, status } = await tryRoute(originLatLng, destLatLng, travelMode);
 
             if (status === 'OVER_QUERY_LIMIT') {
               await new Promise(r => setTimeout(r, 1000));
-              const retry = await tryRoute(travelMode);
+              const retry = await tryRoute(originLatLng, destLatLng, travelMode);
               result = retry.result;
               status = retry.status;
-              request = retry.request;
             }
 
-            // ▼ 追加：エラー時の詳細な原因をコンソールに出力する調査用コード
-            if (status !== 'OK' && travelMode === 'TRANSIT') {
-              console.error("🚨 電車ルート計算エラー発生！詳細データ:", {
-                "エラー理由(status)": status,
-                "出発地(origin)": origin,
-                "目的地(destination)": destination,
-                "送信した時間(departureTime)": request.transitOptions?.departureTime?.toLocaleString(),
-                "元のスケジュールデータ": currentItem
-              });
+            // ▼ 修正のキモ：座標が線路の上等でエラーになった場合、入力された「駅名」で再計算する！
+            if (status === 'ZERO_RESULTS' && travelMode === 'TRANSIT') {
+              const originName = current.location || originLatLng;
+              const destName = next.location || destLatLng;
+              
+              if (typeof originName === 'string' || typeof destName === 'string') {
+                const textRetry = await tryRoute(originName, destName, 'TRANSIT');
+                if (textRetry.status === 'OK') {
+                  result = textRetry.result;
+                  status = textRetry.status;
+                }
+              }
             }
 
-            if (status !== 'OK' && travelMode === 'TRANSIT') {
-              const fallback = await tryRoute('DRIVING');
+            // それでもダメな陸の孤島の場合は、最後の手段として車（黄色）にする
+            if (status === 'ZERO_RESULTS' && travelMode === 'TRANSIT') {
+              const fallback = await tryRoute(originLatLng, destLatLng, 'DRIVING');
               result = fallback.result;
               status = fallback.status;
-              strokeColor = '#eab308'; 
+              strokeColor = '#eab308';
             }
 
             if (status === 'OK' && result) {
@@ -200,11 +208,9 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
               const next = safeSchedules[i + 1];
 
               if (current.lat && current.lng && next.lat && next.lng) {
-                const origin = { lat: current.lat, lng: current.lng };
-                const destination = { lat: next.lat, lng: next.lng };
                 const travelMode = current.travel_mode || 'driving';
-
-                const res = await fetchRouteSegment(origin, destination, travelMode, current);
+                const res = await fetchRouteSegment(current, next, travelMode);
+                
                 if (!isMounted) return;
 
                 newDurations[i] = res.duration;

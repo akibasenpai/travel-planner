@@ -100,69 +100,84 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
 
         if (showRoute && validCoordinates.length > 1) {
           const directionsService = new DirectionsService();
-          const directionsRenderer = new DirectionsRenderer({
-            map,
-            suppressMarkers: true,
-            polylineOptions: {
-              strokeColor: "#eab308",
-              strokeWeight: 5,
-              strokeOpacity: 0.8,
-            },
+
+          // ▼ 修正：区間ごとにルートを計算する関数を作成
+          const fetchRouteSegment = (origin: any, destination: any, mode: string) => {
+            return new Promise<any>((resolve) => {
+              let travelMode = 'DRIVING';
+              let strokeColor = '#eab308'; // 車は黄色
+
+              if (mode === 'transit') {
+                travelMode = 'TRANSIT';
+                strokeColor = '#3b82f6'; // 電車は青色
+              } else if (mode === 'walking') {
+                travelMode = 'WALKING';
+                strokeColor = '#22c55e'; // 徒歩は緑色
+              }
+
+              directionsService.route(
+                { origin, destination, travelMode },
+                (result: any, status: any) => {
+                  if (status === 'OK' && result) {
+                    const renderer = new DirectionsRenderer({
+                      map,
+                      suppressMarkers: true,
+                      polylineOptions: { strokeColor, strokeWeight: 5, strokeOpacity: 0.8 }
+                    });
+                    renderer.setDirections(result);
+                    
+                    const leg = result.routes[0].legs[0];
+                    resolve({
+                      duration: leg.duration?.text || "",
+                      distance: leg.distance?.value || 0
+                    });
+                  } else {
+                    resolve({ duration: "", distance: 0 }); // 失敗時は空っぽ
+                  }
+                }
+              );
+            });
+          };
+
+          // すべての区間の計算を準備する
+          const routePromises = [];
+          for (let i = 0; i < validCoordinates.length - 1; i++) {
+            const origin = { lat: validCoordinates[i].lat!, lng: validCoordinates[i].lng! };
+            const destination = { lat: validCoordinates[i + 1].lat!, lng: validCoordinates[i + 1].lng! };
+            // 移動手段の取得（なければデフォルトで車）
+            const travelMode = validCoordinates[i].travel_mode || 'driving';
+            routePromises.push(fetchRouteSegment(origin, destination, travelMode));
+          }
+
+          // 区間の計算がすべて終わったら、結果をタイムラインに渡す
+          Promise.all(routePromises).then((results) => {
+            const newDurations: string[] = [];
+            const newDistances: string[] = [];
+            let resultIdx = 0;
+
+            schedules.forEach((item, i) => {
+              if (i < schedules.length - 1 && item.lat && item.lng) {
+                const res = results[resultIdx];
+                newDurations[i] = res.duration;
+
+                if (res.distance >= 1000) {
+                  newDistances[i] = `${(res.distance / 1000).toFixed(1)}km`;
+                } else if (res.distance > 0) {
+                  newDistances[i] = `${res.distance}m`;
+                } else {
+                  newDistances[i] = "";
+                }
+                resultIdx++;
+              } else {
+                newDurations[i] = "";
+                newDistances[i] = "";
+              }
+            });
+
+            if (onDurationsCalculated) onDurationsCalculated(newDurations);
+            if (onDistancesCalculated) onDistancesCalculated(newDistances);
           });
 
-          const origin = { lat: validCoordinates[0].lat!, lng: validCoordinates[0].lng! };
-          const destination = { lat: validCoordinates[validCoordinates.length - 1].lat!, lng: validCoordinates[validCoordinates.length - 1].lng! };
-          
-          const waypoints = validCoordinates.slice(1, -1).map((place) => ({
-            location: { lat: place.lat!, lng: place.lng! },
-            stopover: true,
-          }));
-
-          directionsService.route(
-            {
-              origin,
-              destination,
-              waypoints,
-              travelMode: 'DRIVING',
-            },
-            (result: any, status: any) => {
-              if (status === 'OK' && result) {
-                directionsRenderer.setDirections(result);
-                
-                if (result.routes[0]?.legs) {
-                  const legs = result.routes[0].legs;
-                  const newDurations: string[] = [];
-                  const newDistances: string[] = [];
-                  let legIdx = 0;
-                  
-                  schedules.forEach((item, i) => {
-                    if (i < schedules.length - 1 && item.lat && item.lng) {
-                      newDurations[i] = legs[legIdx]?.duration?.text || "";
-                      
-                      const distanceMeters = legs[legIdx]?.distance?.value;
-                      if (distanceMeters !== undefined) {
-                        if (distanceMeters >= 1000) {
-                          // ▼ 修正：kmの場合は「小数点第一位」まで表示し、それ以下は四捨五入する
-                          newDistances[i] = `${(distanceMeters / 1000).toFixed(1)}km`;
-                        } else {
-                          newDistances[i] = `${distanceMeters}m`;
-                        }
-                      } else {
-                        newDistances[i] = "";
-                      }
-
-                      legIdx++;
-                    } else {
-                      newDurations[i] = "";
-                      newDistances[i] = "";
-                    }
-                  });
-                  if (onDurationsCalculated) onDurationsCalculated(newDurations);
-                  if (onDistancesCalculated) onDistancesCalculated(newDistances);
-                }
-              }
-            }
-          );
         } else {
           if (onDurationsCalculated) onDurationsCalculated([]);
           if (onDistancesCalculated) onDistancesCalculated([]);

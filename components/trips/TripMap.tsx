@@ -28,9 +28,12 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
 
     async function initMap() {
       try {
+        // ▼ 追加：日本国内のルート検索に最適化するための設定
         setOptions({
           key: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
           v: "weekly",
+          region: "JP",
+          language: "ja"
         });
 
         const mapsLib = await importLibrary("maps") as any;
@@ -102,40 +105,12 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
           const directionsService = new DirectionsService();
 
           const fetchRouteSegment = async (current: any, next: any, mode: string) => {
-            // 計算処理をまとめた関数（出発地・目的地を柔軟に変えられるように）
-            const tryRoute = (originArg: any, destArg: any, tMode: string): Promise<any> => {
+            const tryRoute = (originArg: any, destArg: any, tMode: string, depTime: Date): Promise<any> => {
               return new Promise((resolve) => {
                 const request: any = { origin: originArg, destination: destArg, travelMode: tMode };
-                
                 if (tMode === 'TRANSIT') {
-                  let departureTime = new Date();
-                  departureTime.setDate(departureTime.getDate() + 1);
-                  departureTime.setHours(12, 0, 0, 0);
-
-                  const targetDatetime = current.departure_datetime || current.datetime;
-                  if (targetDatetime) {
-                    const safeStr = targetDatetime.replace(' ', 'T');
-                    const parsedDate = new Date(safeStr);
-                    
-                    if (!isNaN(parsedDate.getTime())) {
-                      if (parsedDate.getTime() > Date.now()) {
-                        departureTime = parsedDate;
-                      } else {
-                        const futureDate = new Date();
-                        futureDate.setDate(futureDate.getDate() + 1);
-                        futureDate.setHours(parsedDate.getHours(), parsedDate.getMinutes(), 0, 0);
-                        departureTime = futureDate;
-                      }
-                    } else {
-                      const timeMatch = targetDatetime.match(/(\d{1,2}):(\d{2})/);
-                      if (timeMatch) {
-                        departureTime.setHours(parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), 0, 0);
-                      }
-                    }
-                  }
-                  request.transitOptions = { departureTime };
+                  request.transitOptions = { departureTime: depTime };
                 }
-
                 directionsService.route(request, (result: any, status: any) => {
                   resolve({ result, status });
                 });
@@ -150,33 +125,56 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
             const originLatLng = { lat: current.lat, lng: current.lng };
             const destLatLng = { lat: next.lat, lng: next.lng };
 
-            // 1回目の挑戦：正確な「座標」で計算
-            let { result, status } = await tryRoute(originLatLng, destLatLng, travelMode);
+            // 出発時刻を決定
+            let userTime = new Date();
+            userTime.setDate(userTime.getDate() + 1);
+            userTime.setHours(12, 0, 0, 0);
+
+            const targetDatetime = current.departure_datetime || current.datetime;
+            if (targetDatetime) {
+              const safeStr = targetDatetime.replace(' ', 'T');
+              const parsedDate = new Date(safeStr);
+              if (!isNaN(parsedDate.getTime()) && parsedDate.getTime() > Date.now()) {
+                userTime = parsedDate;
+              }
+            }
+
+            // 1回目の挑戦：指定された日時と座標で計算
+            let { result, status } = await tryRoute(originLatLng, destLatLng, travelMode, userTime);
 
             if (status === 'OVER_QUERY_LIMIT') {
               await new Promise(r => setTimeout(r, 1000));
-              const retry = await tryRoute(originLatLng, destLatLng, travelMode);
+              const retry = await tryRoute(originLatLng, destLatLng, travelMode, userTime);
               result = retry.result;
               status = retry.status;
             }
 
-            // ▼ 修正のキモ：座標が線路の上等でエラーになった場合、入力された「駅名」で再計算する！
+            // ▼ 修正のキモ：日付が先すぎて時刻表がない等のエラーの場合の救済措置
             if (status === 'ZERO_RESULTS' && travelMode === 'TRANSIT') {
-              const originName = current.location || originLatLng;
-              const destName = next.location || destLatLng;
+              // 救済策1：出発時間を「明日の同じ時間」にすり替えて再計算（時刻表切れ対策）
+              const fallbackTime = new Date();
+              fallbackTime.setDate(fallbackTime.getDate() + 1);
+              fallbackTime.setHours(userTime.getHours(), userTime.getMinutes(), 0, 0);
               
-              if (typeof originName === 'string' || typeof destName === 'string') {
-                const textRetry = await tryRoute(originName, destName, 'TRANSIT');
-                if (textRetry.status === 'OK') {
-                  result = textRetry.result;
-                  status = textRetry.status;
+              const retryDate = await tryRoute(originLatLng, destLatLng, 'TRANSIT', fallbackTime);
+              if (retryDate.status === 'OK') {
+                result = retryDate.result;
+                status = retryDate.status;
+              } else {
+                // 救済策2：それでもダメなら座標が線路の上と判定されている。駅名（テキスト）で再計算
+                const originName = current.location ? `${current.location}, 日本` : originLatLng;
+                const destName = next.location ? `${next.location}, 日本` : destLatLng;
+                const retryText = await tryRoute(originName, destName, 'TRANSIT', fallbackTime);
+                if (retryText.status === 'OK') {
+                  result = retryText.result;
+                  status = retryText.status;
                 }
               }
             }
 
-            // それでもダメな陸の孤島の場合は、最後の手段として車（黄色）にする
+            // 最終防衛線：あらゆる手段を使っても電車に乗れなかった場合だけ、車にする
             if (status === 'ZERO_RESULTS' && travelMode === 'TRANSIT') {
-              const fallback = await tryRoute(originLatLng, destLatLng, 'DRIVING');
+              const fallback = await tryRoute(originLatLng, destLatLng, 'DRIVING', new Date());
               result = fallback.result;
               status = fallback.status;
               strokeColor = '#eab308';

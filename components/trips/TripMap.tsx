@@ -2,8 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
+import type { ScheduleItem } from "@/lib/types/trip";
 
-export function TripMap() {
+// ▼ 修正：親画面からデータを受け取る「入り口（型定義）」を復活させました
+type TripMapProps = {
+  schedules?: ScheduleItem[];
+  onDurationsCalculated?: (durations: string[]) => void;
+  onDistancesCalculated?: (distances: string[]) => void;
+  showRoute?: boolean;
+};
+
+export function TripMap({ schedules, onDurationsCalculated, onDistancesCalculated, showRoute }: TripMapProps) {
   const [diagnosticLog, setDiagnosticLog] = useState<string>("🔄 Google Maps APIを診断中...");
 
   useEffect(() => {

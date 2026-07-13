@@ -101,7 +101,6 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
         if (showRoute && validCoordinates.length > 1) {
           const directionsService = new DirectionsService();
 
-          // ▼ 修正：区間ごとにルートを計算する関数を作成
           const fetchRouteSegment = (origin: any, destination: any, mode: string) => {
             return new Promise<any>((resolve) => {
               let travelMode = 'DRIVING';
@@ -115,13 +114,28 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
                 strokeColor = '#22c55e'; // 徒歩は緑色
               }
 
+              // ▼ 修正：リクエストデータを作成
+              const request: any = {
+                origin,
+                destination,
+                travelMode
+              };
+
+              // ▼ 修正：電車の場合は「出発時刻（計算時点の現在時刻）」を必須で渡す
+              if (travelMode === 'TRANSIT') {
+                request.transitOptions = {
+                  departureTime: new Date(),
+                };
+              }
+
               directionsService.route(
-                { origin, destination, travelMode },
+                request,
                 (result: any, status: any) => {
                   if (status === 'OK' && result) {
                     const renderer = new DirectionsRenderer({
                       map,
                       suppressMarkers: true,
+                      preserveViewport: true, // ▼ 修正：ルート描画時に勝手にズームする機能をオフ！
                       polylineOptions: { strokeColor, strokeWeight: 5, strokeOpacity: 0.8 }
                     });
                     renderer.setDirections(result);
@@ -132,24 +146,22 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
                       distance: leg.distance?.value || 0
                     });
                   } else {
-                    resolve({ duration: "", distance: 0 }); // 失敗時は空っぽ
+                    console.warn(`ルート計算失敗 (${travelMode}):`, status);
+                    resolve({ duration: "", distance: 0 }); 
                   }
                 }
               );
             });
           };
 
-          // すべての区間の計算を準備する
           const routePromises = [];
           for (let i = 0; i < validCoordinates.length - 1; i++) {
             const origin = { lat: validCoordinates[i].lat!, lng: validCoordinates[i].lng! };
             const destination = { lat: validCoordinates[i + 1].lat!, lng: validCoordinates[i + 1].lng! };
-            // 移動手段の取得（なければデフォルトで車）
             const travelMode = validCoordinates[i].travel_mode || 'driving';
             routePromises.push(fetchRouteSegment(origin, destination, travelMode));
           }
 
-          // 区間の計算がすべて終わったら、結果をタイムラインに渡す
           Promise.all(routePromises).then((results) => {
             const newDurations: string[] = [];
             const newDistances: string[] = [];
@@ -183,6 +195,7 @@ export function TripMap({ schedules = [], onDurationsCalculated, onDistancesCalc
           if (onDistancesCalculated) onDistancesCalculated([]);
         }
 
+        // ▼ 全てのピンが収まるように広域表示に合わせる（ここはそのまま活きます！）
         if (validCoordinates.length > 1) {
           map.fitBounds(bounds);
         }

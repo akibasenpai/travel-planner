@@ -63,7 +63,7 @@ export function TripEditForm({ initialDraft }: TripEditFormProps) {
           onChange={(e) => setDraft({ ...draft, description: e.target.value })}
           placeholder="旅の目的やメモなど"
           rows={4}
-          className={`${inputField} resize-none`}
+          className={`${inputField} resize-y`}
         />
       </label>
 

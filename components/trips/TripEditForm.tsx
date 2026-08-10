@@ -70,7 +70,9 @@ export function TripEditForm({ initialDraft }: TripEditFormProps) {
         />
       </label>
 
-      <ScheduleFormList onChange="{(schedules)" schedules="{draft.schedules}"> setDraft({ ...draft, schedules })}
+      <ScheduleFormList
+        schedules={draft.schedules}
+        onChange={(schedules) => setDraft({ ...draft, schedules })}
       />
 
       <button
@@ -93,5 +95,5 @@ export function TripEditFormFromTrip({
 }: {
   trip: Parameters<typeof tripToDraft>[0];
 }) {
-  return <TripEditForm initialDraft="{tripToDraft(trip)}"/>;
+  return <TripEditForm initialDraft={tripToDraft(trip)} />;
 }

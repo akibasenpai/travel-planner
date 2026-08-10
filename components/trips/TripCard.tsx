@@ -1,38 +1,55 @@
 "use client";
 
-import { useState } from "react"; // 👈 追加：ポップアップの表示状態を管理する
+import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation"; // 👈 追加
 import type { Trip } from "@/lib/types/trip";
 import { formatDatetimeDisplay } from "@/lib/utils/datetime";
 import { deleteTripAction } from "@/app/actions/trips";
+import { tripToDraft } from "@/lib/types/trip"; // 👈 追加
+import { saveDraftToSession } from "@/lib/draft/session"; // 👈 追加
 
 type TripCardProps = {
   trip: Trip;
 };
 
 export function TripCard({ trip }: TripCardProps) {
+  const router = useRouter(); // 👈 追加
   const scheduleCount = trip.schedules.length;
   const firstSchedule = trip.schedules[0];
 
-  // ▼ 追加：オリジナルポップアップの状態管理
   const [showModal, setShowModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // ゴミ箱ボタンを押した時（ポップアップを開く）
+  // ▼ 追加：複製ボタンを押した時の処理
+  function handleDuplicate(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // 1. 現在の旅行データを編集用の「ドラフト」に変換
+    const copiedDraft = tripToDraft(trip);
+    
+    // 2. 新規作成扱いにするため、IDを空にしてタイトルを変更
+    copiedDraft.id = ""; 
+    copiedDraft.title = `${copiedDraft.title || "無題のしおり"} のコピー`;
+
+    // 3. 一時保存（セッション）に書き込んでから、編集画面へ飛ぶ
+    saveDraftToSession(copiedDraft);
+    router.push("/edit");
+  }
+
   function handleDeleteClick(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
     setShowModal(true);
   }
 
-  // 「削除しない」を押した時（ポップアップを閉じる）
   function handleCancel(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
     setShowModal(false);
   }
 
-  // 「削除」を押した時（実際に削除を実行する）
   async function handleConfirmDelete(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
@@ -40,7 +57,6 @@ export function TripCard({ trip }: TripCardProps) {
 
     try {
       await deleteTripAction(trip.id);
-      // 成功時は一覧が自動更新されるので何もしなくてOK
     } catch (error) {
       alert("削除に失敗しました。時間をおいて再度お試しください。");
       setIsDeleting(false);
@@ -73,25 +89,34 @@ export function TripCard({ trip }: TripCardProps) {
           </div>
         </Link>
 
-        {/* 削除ボタン */}
-        <button
-          onClick={handleDeleteClick}
-          className="absolute bottom-3 right-3 z-10 rounded-md bg-red-50 px-2.5 py-1.5 text-[11px] font-bold text-red-500 transition-all hover:bg-red-100 opacity-100 md:opacity-0 md:group-hover:opacity-100"
-        >
-          🗑️ 削除
-        </button>
+        {/* ▼ 修正：ボタンを横に並べるための flex コンテナに変更 */}
+        <div className="absolute bottom-3 right-3 z-10 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
+          {/* 複製ボタン */}
+          <button
+            onClick={handleDuplicate}
+            className="rounded-md bg-stone-100 px-2.5 py-1.5 text-[11px] font-bold text-stone-600 transition-all hover:bg-stone-200"
+          >
+            📄 複製
+          </button>
+
+          {/* 削除ボタン */}
+          <button
+            onClick={handleDeleteClick}
+            className="rounded-md bg-red-50 px-2.5 py-1.5 text-[11px] font-bold text-red-500 transition-all hover:bg-red-100"
+          >
+            🗑️ 削除
+          </button>
+        </div>
       </div>
 
-      {/* ▼ 追加：オリジナルの確認ポップアップ */}
       {showModal && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm transition-opacity"
-          onClick={handleCancel} // 背景タップでもキャンセル扱いにする
+          onClick={handleCancel}
         >
-          {/* ポップアップ本体 */}
           <div 
             className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-xl"
-            onClick={(e) => e.stopPropagation()} // ポップアップの中身をタップしても閉じないようにする
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6">
               <h3 className="text-lg font-bold text-stone-800">しおりの削除</h3>
@@ -102,7 +127,6 @@ export function TripCard({ trip }: TripCardProps) {
             </div>
             
             <div className="flex border-t border-stone-100 bg-stone-50">
-              {/* ご希望の「削除しない」ボタン */}
               <button
                 onClick={handleCancel}
                 disabled={isDeleting}
@@ -111,9 +135,8 @@ export function TripCard({ trip }: TripCardProps) {
                 削除しない
               </button>
               
-              <div className="w-px bg-stone-100" /> {/* 真ん中の仕切り線 */}
+              <div className="w-px bg-stone-100" />
               
-              {/* ご希望の「削除」ボタン */}
               <button
                 onClick={handleConfirmDelete}
                 disabled={isDeleting}
